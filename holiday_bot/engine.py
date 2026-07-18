@@ -19,7 +19,8 @@ from .seeds import (
     official_work_schedule_managed_prefixes,
 )
 from .storage import (
-    assert_expected_key, load_existing_payload_state, load_private_key, read_json, sign_payload, write_json,
+    assert_expected_key, load_existing_payload_state, load_private_key, load_revision_floor,
+    read_json, revision_floor_json, sign_payload, write_json,
 )
 from .validate import validate_payloads
 
@@ -157,10 +158,16 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     work_payload_path = root / "data/working_hours.payload.json"
     holiday_envelope_path = feed_dir / "holidays.json"
     work_envelope_path = feed_dir / "working_hours.json"
+    revision_floor_path = root / "data/revision_floor.json"
+    revision_floor = load_revision_floor(revision_floor_path)
     holiday_state = load_existing_payload_state(root, holiday_envelope_path, holiday_payload_path, HOLIDAY_FEED_FORMAT)
     work_state = load_existing_payload_state(root, work_envelope_path, work_payload_path, WORK_SCHEDULE_FEED_FORMAT)
     holiday_payload = holiday_state.payload
     work_payload = work_state.payload
+    holiday_effective_revision = max(holiday_state.highest_revision, revision_floor.holiday_revision_floor)
+    work_effective_revision = max(work_state.highest_revision, revision_floor.working_hours_revision_floor)
+    holiday_floor_recovery = holiday_state.highest_revision < revision_floor.holiday_revision_floor
+    work_floor_recovery = work_state.highest_revision < revision_floor.working_hours_revision_floor
 
     old_holidays = list(holiday_payload.get("holidays", []))
     old_schedules = list(work_payload.get("schedules", []))
@@ -185,30 +192,35 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         old_h_canonical != new_h_canonical
         or holiday_state.highest_revision < 1
         or holiday_state.restore_required
+        or holiday_floor_recovery
         or force_publish
     )
     work_changed = (
         old_w_canonical != new_w_canonical
         or work_state.highest_revision < 1
         or work_state.restore_required
+        or work_floor_recovery
         or force_publish
     )
     if holiday_changed:
         holiday_payload = {
             "format": HOLIDAY_FEED_FORMAT,
-            "revision": max(1, holiday_state.highest_revision + 1),
+            "revision": max(1, holiday_effective_revision + 1),
             "generatedAt": now,
             "holidays": holidays,
         }
     if work_changed:
         work_payload = {
             "format": WORK_SCHEDULE_FEED_FORMAT,
-            "revision": max(1, work_state.highest_revision + 1),
+            "revision": max(1, work_effective_revision + 1),
             "generatedAt": now,
             "schedules": schedules,
         }
 
     validation = validate_payloads(holiday_payload, work_payload, require_baseline=True)
+    holiday_floor_after = max(revision_floor.holiday_revision_floor, int(holiday_payload["revision"]))
+    work_floor_after = max(revision_floor.working_hours_revision_floor, int(work_payload["revision"]))
+    floor_payload = revision_floor_json(holiday_floor_after, work_floor_after, now, f"bot-v{BOT_VERSION}")
     pending = _merge_pending(read_json(root / "data/pending.json", []), verified_pending + dynamic_pending)
     errors = [stat for stat in source_stats if stat["status"] == "error"]
     report = {
@@ -222,6 +234,16 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "holidayChanged": holiday_changed, "workingHoursChanged": work_changed,
         "publishForced": force_publish,
         "holidayRevision": holiday_payload["revision"], "workingHoursRevision": work_payload["revision"],
+        "revisionFloor": {
+            "holidayBefore": revision_floor.holiday_revision_floor,
+            "workingHoursBefore": revision_floor.working_hours_revision_floor,
+            "holidayAfter": holiday_floor_after,
+            "workingHoursAfter": work_floor_after,
+            "holidayRecoveryRequired": holiday_floor_recovery,
+            "workingHoursRecoveryRequired": work_floor_recovery,
+            "sourceUpdatedAt": revision_floor.updated_at,
+            "sourceUpdatedBy": revision_floor.updated_by,
+        },
         "holidayRecovery": {
             "source": holiday_state.source,
             "highestKnownRevision": holiday_state.highest_revision,
@@ -246,6 +268,7 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         write_json(work_payload_path, work_payload)
         write_json(holiday_envelope_path, sign_payload(holiday_payload, key))
         write_json(work_envelope_path, sign_payload(work_payload, key))
+        write_json(revision_floor_path, floor_payload)
         write_json(seen_path, seen)
         write_json(root / "data/pending.json", pending)
         write_json(root / "reports/last_run.json", report)

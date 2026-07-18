@@ -1,0 +1,7 @@
+{
+    "schema":  "kouroshyar-feed-revision-floor-v1",
+    "holidayRevisionFloor":  3,
+    "workingHoursRevisionFloor":  3,
+    "updatedAt":  "2026-07-18T11:46:50.3333046Z",
+    "updatedBy":  "installer-v1.2.5"
+}

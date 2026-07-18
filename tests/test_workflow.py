@@ -18,6 +18,9 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     assert "reports/last_run.json" not in text.split("git add", 1)[-1]
     assert "holiday_feed/holidays.json" in text
     assert "holiday_feed/working_hours.json" in text
+    assert "data/revision_floor.json" in text
+    assert "report[\"holidayRevision\"] >= 4" in text
+    assert "published-revision-floor.json" in text
 
 
 def test_no_sensitive_key_files_in_payload():

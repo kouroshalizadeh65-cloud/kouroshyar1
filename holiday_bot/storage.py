@@ -94,6 +94,51 @@ def initial_payload(format_name: str) -> dict[str, Any]:
     }
 
 
+REVISION_FLOOR_SCHEMA = "kouroshyar-feed-revision-floor-v1"
+
+
+@dataclass(frozen=True)
+class RevisionFloor:
+    holiday_revision_floor: int
+    working_hours_revision_floor: int
+    updated_at: str | None
+    updated_by: str | None
+
+
+def load_revision_floor(path: Path) -> RevisionFloor:
+    raw = read_json(path, {
+        "schema": REVISION_FLOOR_SCHEMA,
+        "holidayRevisionFloor": 0,
+        "workingHoursRevisionFloor": 0,
+    })
+    if not isinstance(raw, dict) or raw.get("schema") != REVISION_FLOOR_SCHEMA:
+        raise ValueError("ساختار فایل کف بازبینی معتبر نیست.")
+    holiday = raw.get("holidayRevisionFloor")
+    working = raw.get("workingHoursRevisionFloor")
+    if not isinstance(holiday, int) or holiday < 0:
+        raise ValueError("کف بازبینی تعطیلات معتبر نیست.")
+    if not isinstance(working, int) or working < 0:
+        raise ValueError("کف بازبینی ساعات کاری معتبر نیست.")
+    return RevisionFloor(
+        holiday_revision_floor=holiday,
+        working_hours_revision_floor=working,
+        updated_at=str(raw.get("updatedAt")) if raw.get("updatedAt") is not None else None,
+        updated_by=str(raw.get("updatedBy")) if raw.get("updatedBy") is not None else None,
+    )
+
+
+def revision_floor_json(holiday_revision: int, working_hours_revision: int, updated_at: str, updated_by: str) -> dict[str, Any]:
+    if holiday_revision < 0 or working_hours_revision < 0:
+        raise ValueError("کف بازبینی نمی‌تواند منفی باشد.")
+    return {
+        "schema": REVISION_FLOOR_SCHEMA,
+        "holidayRevisionFloor": int(holiday_revision),
+        "workingHoursRevisionFloor": int(working_hours_revision),
+        "updatedAt": updated_at,
+        "updatedBy": updated_by,
+    }
+
+
 def _payload_revision(payload: dict[str, Any], format_name: str) -> int:
     if payload.get("format") != format_name:
         raise ValueError(f"قالب payload اشتباه است: {payload.get('format')}")

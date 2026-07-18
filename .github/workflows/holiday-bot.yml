@@ -28,6 +28,7 @@ on:
       - "data/official_holidays_1405.json"
       - "data/official_work_schedules_1405.json"
       - "data/verified_notices_1405.json"
+      - "data/revision_floor.json"
       - "HOLIDAY_BOT_VERSION"
       - ".github/workflows/holiday-bot.yml"
 
@@ -70,11 +71,12 @@ jobs:
             data/official_holidays_1405.json
             data/official_work_schedules_1405.json
             data/verified_notices_1405.json
+            data/revision_floor.json
           )
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.4"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.5"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -148,8 +150,18 @@ jobs:
           assert validation["periodicSchedules"] == 1, validation
           assert validation["incidentSchedules"] >= 1, validation
           assert validation["holidays"] >= 28, validation
-          assert report["holidayRevision"] >= 1 and report["workingHoursRevision"] >= 1, report
-          print(json.dumps({"ok": True, "validation": validation, "holidayRevision": report["holidayRevision"], "workingHoursRevision": report["workingHoursRevision"]}, ensure_ascii=False, indent=2))
+          floor = report["revisionFloor"]
+          assert report["holidayRevision"] >= 4, report
+          assert report["workingHoursRevision"] >= 4, report
+          assert report["holidayRevision"] >= floor["holidayBefore"], report
+          assert report["workingHoursRevision"] >= floor["workingHoursBefore"], report
+          if report["holidayChanged"]:
+              assert report["holidayRevision"] > floor["holidayBefore"], report
+          if report["workingHoursChanged"]:
+              assert report["workingHoursRevision"] > floor["workingHoursBefore"], report
+          assert floor["holidayAfter"] == report["holidayRevision"], report
+          assert floor["workingHoursAfter"] == report["workingHoursRevision"], report
+          print(json.dumps({"ok": True, "validation": validation, "holidayRevision": report["holidayRevision"], "workingHoursRevision": report["workingHoursRevision"], "revisionFloor": floor}, ensure_ascii=False, indent=2))
           PY
           fi
 
@@ -175,6 +187,7 @@ jobs:
             holiday_feed/working_hours.json \
             data/holidays.payload.json \
             data/working_hours.payload.json \
+            data/revision_floor.json \
             data/seen.json \
             data/pending.json
           if git diff --cached --quiet; then
@@ -183,7 +196,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.2.4]"
+          git commit -m "chore: update signed holiday feeds [bot v1.2.5]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then
@@ -212,7 +225,8 @@ jobs:
           BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISHED_SHA}/holiday_feed"
           for attempt in 1 2 3 4 5; do
             if curl --fail --silent --show-error --location "$BASE/holidays.json" -o /tmp/published-holidays.json && \
-               curl --fail --silent --show-error --location "$BASE/working_hours.json" -o /tmp/published-working-hours.json; then
+               curl --fail --silent --show-error --location "$BASE/working_hours.json" -o /tmp/published-working-hours.json && \
+               curl --fail --silent --show-error --location "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISHED_SHA}/data/revision_floor.json" -o /tmp/published-revision-floor.json; then
               break
             fi
             if [ "$attempt" -eq 5 ]; then exit 1; fi
@@ -230,7 +244,12 @@ jobs:
           remote_w = verify_envelope(read_json(Path("/tmp/published-working-hours.json"), {}))
           assert remote_h == local_h, "Published holiday feed differs from generated feed."
           assert remote_w == local_w, "Published working-hours feed differs from generated feed."
+          published_floor = read_json(Path("/tmp/published-revision-floor.json"), {})
           stats = validate_payloads(remote_h, remote_w, require_baseline=True)
           assert stats["holidays"] >= 28 and stats["periodicSchedules"] == 1 and stats["incidentSchedules"] >= 1, stats
-          print(json.dumps({"ok": True, "publishedHolidayRevision": remote_h["revision"], "publishedWorkingHoursRevision": remote_w["revision"], **stats}, ensure_ascii=False, indent=2))
+          assert remote_h["revision"] >= 4 and remote_w["revision"] >= 4, (remote_h["revision"], remote_w["revision"])
+          assert published_floor.get("schema") == "kouroshyar-feed-revision-floor-v1", published_floor
+          assert published_floor.get("holidayRevisionFloor") == remote_h["revision"], published_floor
+          assert published_floor.get("workingHoursRevisionFloor") == remote_w["revision"], published_floor
+          print(json.dumps({"ok": True, "publishedHolidayRevision": remote_h["revision"], "publishedWorkingHoursRevision": remote_w["revision"], "publishedRevisionFloor": published_floor, **stats}, ensure_ascii=False, indent=2))
           PY
