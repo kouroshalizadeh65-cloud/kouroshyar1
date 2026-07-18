@@ -1,8 +1,7 @@
 name: kouroshyar
 description: KouroshYar - secure legal assistant Android build package.
 publish_to: "none"
-version: 3.6.55+127
-
+version: 3.6.57+129
 environment:
   sdk: ">=3.12.0 <4.0.0"
   flutter: ">=3.44.0"

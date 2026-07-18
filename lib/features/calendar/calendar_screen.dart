@@ -1708,6 +1708,14 @@ class _WorkScheduleBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final schedules = _exceptionWorkSchedulesForDate(day, settings);
     if (schedules.isEmpty) return const SizedBox.shrink();
+    final periodicSchedules = _periodicWorkSchedulesForDate(day, settings);
+    String? fallbackStartTime;
+    for (final periodic in periodicSchedules) {
+      if (periodic.startTime != null && periodic.startTime!.trim().isNotEmpty) {
+        fallbackStartTime = periodic.startTime;
+        break;
+      }
+    }
     final workColor = Colors.orange.shade800;
     return Column(
       children: [
@@ -1718,52 +1726,122 @@ class _WorkScheduleBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: workColor.withOpacity(0.45)),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.access_time_filled, color: workColor),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          schedule.typeLabel,
-                          style: TextStyle(color: workColor, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(schedule.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 6),
-                        Text('${schedule.timeLabel} | ${schedule.scopeLabel}'),
-                        if (schedule.includedOrganizations.isNotEmpty)
-                          Text('مشمول: ${schedule.includedOrganizations.join('، ')}'),
-                        if (schedule.excludedOrganizations.isNotEmpty)
-                          Text('مستثنا: ${schedule.excludedOrganizations.join('، ')}'),
-                        Text('مرجع: ${schedule.authority}'),
-                        if (schedule.note != null &&
-                            schedule.note!.trim().isNotEmpty &&
-                            !schedule.note!.contains('نسخه 3.6.53'))
-                          Text(schedule.note!.trim()),
-                        if (schedule.sourceUrl != null && schedule.sourceUrl!.trim().isNotEmpty)
-                          SelectableText(
-                            'منبع: ${schedule.sourceUrl}',
-                            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'این روز تعطیل محسوب نمی‌شود و هیچ مهلتی خودکار تغییر نمی‌کند؛ پیش از مراجعه، ساعت فعالیت مرجع مربوط بررسی شود.',
-                          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        ),
-                      ],
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _showWorkScheduleDetails(
+                context,
+                day: day,
+                schedule: schedule,
+                fallbackStartTime: fallbackStartTime,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        toPersianDigits(schedule.administrativeSummary(fallbackStartTime: fallbackStartTime)),
+                        style: TextStyle(color: workColor, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Icon(Icons.chevron_left_rounded, color: workColor),
+                  ],
+                ),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+Future<void> _showWorkScheduleDetails(
+  BuildContext context, {
+  required DateTime day,
+  required WorkScheduleUpdate schedule,
+  String? fallbackStartTime,
+}) async {
+  final scheme = Theme.of(context).colorScheme;
+  final summary = toPersianDigits(schedule.administrativeSummary(fallbackStartTime: fallbackStartTime));
+  final published = schedule.publishedAt.toLocal();
+  final publishedText = toPersianDigits(
+    '${published.year.toString().padLeft(4, '0')}/${published.month.toString().padLeft(2, '0')}/${published.day.toString().padLeft(2, '0')} '
+    '${published.hour.toString().padLeft(2, '0')}:${published.minute.toString().padLeft(2, '0')}',
+  );
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) {
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            4,
+            18,
+            18 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(summary, style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 14),
+              _WorkScheduleDetailLine(label: 'تاریخ اجرا', value: formatPersianLongDate(day)),
+              _WorkScheduleDetailLine(label: 'عنوان اطلاعیه', value: schedule.title),
+              _WorkScheduleDetailLine(label: 'نوع', value: schedule.typeLabel),
+              _WorkScheduleDetailLine(label: 'ساعت', value: toPersianDigits(schedule.timeLabel)),
+              _WorkScheduleDetailLine(label: 'محدوده اجرا', value: schedule.scopeLabel),
+              if (schedule.includedOrganizations.isNotEmpty)
+                _WorkScheduleDetailLine(label: 'مشمولان', value: schedule.includedOrganizations.join('، ')),
+              if (schedule.excludedOrganizations.isNotEmpty)
+                _WorkScheduleDetailLine(label: 'موارد مستثنا', value: schedule.excludedOrganizations.join('، ')),
+              _WorkScheduleDetailLine(label: 'مرجع رسمی', value: schedule.authority),
+              _WorkScheduleDetailLine(label: 'زمان انتشار', value: publishedText),
+              if (schedule.note != null && schedule.note!.trim().isNotEmpty)
+                _WorkScheduleDetailLine(label: 'توضیحات', value: schedule.note!.trim()),
+              if (schedule.sourceUrl != null && schedule.sourceUrl!.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('منبع رسمی', style: TextStyle(fontWeight: FontWeight.bold, color: scheme.primary)),
+                const SizedBox(height: 4),
+                SelectableText(schedule.sourceUrl!.trim(), style: TextStyle(color: scheme.onSurfaceVariant)),
+              ],
+              const SizedBox(height: 14),
+              Text(
+                'این تغییر، روز را تعطیل نمی‌کند و هیچ کار، جلسه یا مهلتی را خودکار جابه‌جا نمی‌کند.',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _WorkScheduleDetailLine extends StatelessWidget {
+  const _WorkScheduleDetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: RichText(
+        text: TextSpan(
+          style: DefaultTextStyle.of(context).style.copyWith(height: 1.55),
+          children: [
+            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
     );
   }
 }

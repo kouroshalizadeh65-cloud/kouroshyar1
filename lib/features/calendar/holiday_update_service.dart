@@ -263,6 +263,26 @@ class WorkScheduleUpdate {
     return 'ساعت دقیق در اطلاعیه درج نشده است';
   }
 
+  String administrativeSummary({String? fallbackStartTime}) {
+    final effectiveStart = startTime ?? fallbackStartTime;
+    String rangeLabel(String prefix) {
+      if (effectiveStart != null && endTime != null) {
+        return '$prefix از ساعت $effectiveStart تا $endTime';
+      }
+      if (effectiveStart != null) return '$prefix از ساعت $effectiveStart';
+      if (endTime != null) return '$prefix تا ساعت $endTime';
+      return prefix;
+    }
+
+    return switch (scheduleType) {
+      'early_close' => rangeLabel('کاهش ساعت اداری'),
+      'delayed_start' => effectiveStart == null ? 'تأخیر در آغاز ساعت اداری' : 'آغاز ساعت اداری از ساعت $effectiveStart',
+      'changed_hours' => rangeLabel('تغییر ساعت اداری'),
+      'remote_work' => 'دورکاری ادارات',
+      _ => rangeLabel('تغییر برنامه اداری'),
+    };
+  }
+
   bool appliesToProvince(String selectedProvince) {
     if (!isActive) return false;
     if (scope == 'national') return true;
@@ -605,7 +625,7 @@ class HolidayUpdateService {
     }
     final bytes = await _downloadEnvelope(
       feedUrl: feedUrl,
-      userAgent: 'KouroshYar/3.6.55 holiday-updater',
+      userAgent: 'KouroshYar/3.6.57 holiday-updater',
       suppliedClient: _httpClient,
     );
     return verifyEnvelope(bytes, currentRevision: currentRevision);
@@ -651,7 +671,7 @@ class WorkScheduleUpdateService {
     }
     final bytes = await _downloadEnvelope(
       feedUrl: feedUrl,
-      userAgent: 'KouroshYar/3.6.55 working-hours-updater',
+      userAgent: 'KouroshYar/3.6.57 working-hours-updater',
       suppliedClient: _httpClient,
     );
     return verifyEnvelope(bytes, currentRevision: currentRevision);

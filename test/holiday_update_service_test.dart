@@ -185,6 +185,28 @@ void workingHoursFeedTests() {
       expect(schedule.appliesToJalaliDate('1405-04-27'), isTrue);
     });
 
+
+    test('creates a short clickable-card summary for an early close', () {
+      final schedule = WorkScheduleUpdate.fromJson(<String, dynamic>{
+        'id': 'work-ilam-summary',
+        'date': '1405-04-24',
+        'title': 'پایان ساعت کاری ادارات در ساعت ۱۱',
+        'scheduleType': 'early_close',
+        'scope': 'province',
+        'province': 'ایلام',
+        'authority': 'استانداری ایلام',
+        'sourceUrl': 'https://example.com/notice',
+        'publishedAt': DateTime.now().toUtc().toIso8601String(),
+        'status': 'active',
+        'endTime': '11:00',
+      });
+
+      expect(
+        schedule.administrativeSummary(fallbackStartTime: '07:00'),
+        'کاهش ساعت اداری از ساعت 07:00 تا 11:00',
+      );
+    });
+
     test('accepts periodic working hours without treating them as a warning', () {
       final schedule = WorkScheduleUpdate.fromJson(<String, dynamic>{
         'id': 'national-work-hours-1405-summer',
