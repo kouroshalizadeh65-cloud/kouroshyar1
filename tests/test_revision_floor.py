@@ -17,7 +17,7 @@ def _payload(format_name: str, revision: int) -> dict:
 
 
 def _prepare(repo: Path, holiday_revision: int, working_revision: int, holiday_floor: int, working_floor: int) -> None:
-    shutil.copytree(ROOT, repo)
+    shutil.copytree(ROOT, repo, ignore=shutil.ignore_patterns(".git"))
     (repo / "data/holidays.payload.json").write_text(json.dumps(_payload(HOLIDAY_FEED_FORMAT, holiday_revision)), encoding="utf-8")
     (repo / "data/working_hours.payload.json").write_text(json.dumps(_payload(WORK_SCHEDULE_FEED_FORMAT, working_revision)), encoding="utf-8")
     shutil.rmtree(repo / "holiday_feed", ignore_errors=True)
