@@ -25,8 +25,8 @@
       "url": "https://www.irna.ir/news/86210178/%D8%A7%D9%86%D8%AF%DB%8C%D8%B4%DA%A9%D8%AF%D9%87-%D8%AD%DA%A9%D9%85%D8%B1%D8%A7%D9%86%DB%8C-%D9%84%D8%B1%D8%B3%D8%AA%D8%A7%D9%86-%D9%BE%D9%84%DB%8C-%D9%85%DB%8C%D8%A7%D9%86-%D9%86%D8%AE%D8%A8%DA%AF%D8%A7%D9%86-%D9%85%D8%AF%DB%8C%D8%B1%DB%8C%D8%AA-%D9%88-%D8%A7%D8%AC%D8%B1%D8%A7",
       "title": "اندیشکده حکمرانی لرستان؛ پلی میان نخبگان، مدیریت و اجرا",
       "publishedAt": "2026-07-15T12:53:13+00:00",
-      "processedAt": "2026-07-18T04:49:32.563568+00:00",
-      "classifierVersion": "1.1.1-r1",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
       "holidays": 0,
       "schedules": 0,
       "pending": 1
@@ -55,8 +55,8 @@
       "url": "https://www.irna.ir/news/86211606/%D8%A8%D8%A7-%D9%87%D9%85%D8%B1%D8%A7%D9%87%DB%8C-%D8%A7%D8%B5%D9%86%D8%A7%D9%81-%D9%82%D9%85-%D8%AA%D8%B9%D8%B7%DB%8C%D9%84%DB%8C-%DB%B4-%D8%B3%D8%A7%D8%B9%D8%AA%DB%8C-%D8%AF%D8%B1-%D8%B3%D8%A7%D8%B9%D8%A7%D8%AA-%D8%A7%D9%88%D8%AC-%D9%85%D8%B5%D8%B1%D9%81-%D8%A8%D8%B1%D9%82",
       "title": "با همراهی اصناف قم تعطیلی 4 ساعتی در ساعات اوج مصرف برق",
       "publishedAt": "2026-07-17T13:47:10+00:00",
-      "processedAt": "2026-07-18T04:49:32.563568+00:00",
-      "classifierVersion": "1.1.1-r1",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
       "holidays": 0,
       "schedules": 0,
       "pending": 1
@@ -65,8 +65,8 @@
       "url": "https://www.irna.ir/news/86211660/%D8%B3%D8%A7%D8%B9%D8%AA-%DA%A9%D8%A7%D8%B1%DB%8C-%D9%85%D8%B1%D8%A7%DA%A9%D8%B2-%D8%AA%D8%AC%D8%A7%D8%B1%DB%8C-%D9%85%D9%86%D8%B7%D9%82%D9%87-%D8%A2%D8%B2%D8%A7%D8%AF-%D8%A7%D9%86%D8%B2%D9%84%DB%8C-%D8%AA%D8%A7-%DB%B2-%D8%A8%D8%A7%D9%85%D8%AF%D8%A7%D8%AF-%D8%AA%D9%85%D8%AF%DB%8C%D8%AF-%D8%B4%D8%AF",
       "title": "ساعت کاری مراکز تجاری منطقه آزاد انزلی تا 2 بامداد تمدید شد",
       "publishedAt": "2026-07-17T16:44:26+00:00",
-      "processedAt": "2026-07-18T04:49:32.563568+00:00",
-      "classifierVersion": "1.1.1-r1",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
       "holidays": 0,
       "schedules": 0,
       "pending": 1
@@ -75,8 +75,38 @@
       "url": "https://www.irna.ir/news/86211800/%D9%81%D8%B9%D8%A7%D9%84%DB%8C%D8%AA-%DA%A9%D8%A7%D8%B1%DA%A9%D9%86%D8%A7%D9%86-%D8%B1%D9%88%D8%B2%DA%A9%D8%A7%D8%B1-%D8%B3%D8%A7%D8%B2%D9%85%D8%A7%D9%86-%D9%85%D9%86%D8%B7%D9%82%D9%87-%D9%88%DB%8C%DA%98%D9%87-%D9%BE%D8%A7%D8%B1%D8%B3-%D8%AF%D9%88%D8%B1%DA%A9%D8%A7%D8%B1%DB%8C-%D8%B4%D8%AF",
       "title": "فعالیت کارکنان روزکار سازمان منطقه ویژه پارس دورکاری شد",
       "publishedAt": "2026-07-17T21:40:43+00:00",
-      "processedAt": "2026-07-18T04:49:32.563568+00:00",
-      "classifierVersion": "1.1.1-r1",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
+      "holidays": 0,
+      "schedules": 0,
+      "pending": 1
+    },
+    "ef2aaf9fa04dc32039962c71": {
+      "url": "https://www.irna.ir/news/86212187/%D8%AA%D8%B9%D8%B7%DB%8C%D9%84%DB%8C-%D9%88-%D8%AC%D9%85%D8%B9-%D8%A2%D9%88%D8%B1%DB%8C-%DB%B2%DB%B3-%D9%88%D8%A7%D8%AD%D8%AF-%D8%A2%D8%A8%DA%A9%D8%A7%D8%B1%DB%8C-%D8%A2%D9%84%D8%A7%DB%8C%D9%86%D8%AF%D9%87-%D8%AF%D8%B1-%D8%B4%D9%87%D8%B1%D8%B3%D8%AA%D8%A7%D9%86-%D8%AA%D9%87%D8%B1%D8%A7%D9%86",
+      "title": "تعطیلی و جمع آوری 23 واحد آبکاری آلاینده در شهرستان تهران",
+      "publishedAt": "2026-07-18T08:53:30+00:00",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
+      "holidays": 0,
+      "schedules": 0,
+      "pending": 1
+    },
+    "eb0ad1b9c34805000e659e3c": {
+      "url": "https://www.irna.ir/news/86212149/%D8%B1%DB%8C%DB%8C%D8%B3-%D8%A7%D8%AA%D8%A7%D9%82-%D8%A7%D8%B5%D9%86%D8%A7%D9%81-%D9%82%D8%B2%D9%88%DB%8C%D9%86-%D9%85%D8%A7%D9%84%DB%8C%D8%A7%D8%AA-%D8%B5%D9%86%D9%81%DB%8C-%D8%AF%D8%B1-%D9%BE%D9%86%D8%AC-%D9%85%D8%A7%D9%87-%D8%AA%D8%B9%D8%B7%DB%8C%D9%84%DB%8C-%D8%A8%D8%A7%DB%8C%D8%AF-%D8%AF%D9%88%D8%A8%D8%A7%D8%B1%D9%87",
+      "title": "رییس اتاق اصناف قزوین: مالیات صنفی در پنج ماه تعطیلی باید دوباره محاسبه شود",
+      "publishedAt": "2026-07-18T08:55:22+00:00",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
+      "holidays": 0,
+      "schedules": 0,
+      "pending": 1
+    },
+    "ae12b5a4e12a8d67891ff8e2": {
+      "url": "https://www.irna.ir/news/86212001/%DB%B2-%DA%A9%D8%AA%D8%A7%D8%A8%D8%AE%D8%A7%D9%86%D9%87-%DA%A9%D8%B1%D9%85%D8%A7%D9%86%D8%B4%D8%A7%D9%87-%D8%AF%D8%B1-%D8%B1%D9%88%D8%B2%D9%87%D8%A7%DB%8C-%D8%AA%D8%B9%D8%B7%DB%8C%D9%84-%D9%81%D8%B9%D8%A7%D9%84-%D8%A7%D8%B3%D8%AA",
+      "title": "2 کتابخانه کرمانشاه در روزهای تعطیل فعال است",
+      "publishedAt": "2026-07-18T09:16:48+00:00",
+      "processedAt": "2026-07-18T10:46:31.865214+00:00",
+      "classifierVersion": "1.2.0-r1",
       "holidays": 0,
       "schedules": 0,
       "pending": 1
