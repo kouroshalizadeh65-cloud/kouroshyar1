@@ -1,7 +1,7 @@
 {
   "format": "kouroshyar-holiday-feed-v1",
-  "revision": 4,
-  "generatedAt": "2026-07-18T11:47:10.868571+00:00",
+  "revision": 5,
+  "generatedAt": "2026-07-18T21:29:07.575556+00:00",
   "holidays": [
     {
       "id": "official-1405-01-01",
@@ -148,6 +148,18 @@
       "note": "برگرفته از تقویم رسمی کشور سال ۱۴۰۵؛ مناسبت‌ها مصوب شورای فرهنگ عمومی کشور."
     },
     {
+      "id": "holiday-tehran-1405-04-13",
+      "date": "1405-04-13",
+      "title": "تعطیلی استان تهران در روز ۱۳ تیر",
+      "type": "provincial",
+      "scope": "province",
+      "province": "تهران",
+      "authority": "هیات دولت جمهوری اسلامی ایران",
+      "sourceUrl": "https://www.irna.ir/news/86191188/",
+      "publishedAt": "2026-06-23T11:06:00Z",
+      "status": "active"
+    },
+    {
       "id": "holiday-national-1405-04-14-mourning",
       "date": "1405-04-14",
       "title": "تعطیلی رسمی سراسر کشور برای امکان حضور در مراسم وداع و تشییع رهبر فقید انقلاب",
@@ -169,7 +181,71 @@
       "sourceUrl": "https://dolat.ir/detail/483653",
       "publishedAt": "2026-06-23T12:00:00Z",
       "status": "active",
-      "note": "تعطیلی سراسری با مصوبه هیات دولت برای تسهیل حضور مردم در مراسم تشییع اعلام شد."
+      "note": "تعطیلی سراسری با مصوبه هیات دولت اعلام شد."
+    },
+    {
+      "id": "holiday-qom-1405-04-16",
+      "date": "1405-04-16",
+      "title": "تعطیلی استان قم در روز ۱۶ تیر",
+      "type": "provincial",
+      "scope": "province",
+      "province": "قم",
+      "authority": "هیات دولت جمهوری اسلامی ایران",
+      "sourceUrl": "https://www.irna.ir/news/86198857/",
+      "publishedAt": "2026-07-02T08:58:00Z",
+      "status": "active"
+    },
+    {
+      "id": "holiday-tehran-1405-04-16",
+      "date": "1405-04-16",
+      "title": "تعطیلی استان تهران در روز ۱۶ تیر",
+      "type": "provincial",
+      "scope": "province",
+      "province": "تهران",
+      "authority": "هیات دولت جمهوری اسلامی ایران",
+      "sourceUrl": "https://www.irna.ir/news/86198857/",
+      "publishedAt": "2026-07-02T08:58:00Z",
+      "status": "active"
+    },
+    {
+      "id": "holiday-khorasan-razavi-1405-04-18",
+      "date": "1405-04-18",
+      "title": "تعطیلی استان خراسان رضوی در روز ۱۸ تیر",
+      "type": "provincial",
+      "scope": "province",
+      "province": "خراسان رضوی",
+      "authority": "هیات دولت جمهوری اسلامی ایران",
+      "sourceUrl": "https://www.irna.ir/news/86198857/",
+      "publishedAt": "2026-07-02T08:58:00Z",
+      "status": "active"
+    },
+    {
+      "id": "holiday-ilam-dehloran-1405-04-24",
+      "date": "1405-04-24",
+      "title": "تعطیلی ادارات شهرستان دهلران",
+      "type": "administrative",
+      "scope": "county",
+      "province": "ایلام",
+      "counties": [
+        "دهلران"
+      ],
+      "authority": "روابط عمومی و امور بین‌الملل استانداری ایلام",
+      "sourceUrl": "https://www.irna.ir/news/86209477/",
+      "publishedAt": "2026-07-14T17:58:00Z",
+      "status": "active",
+      "includedOrganizations": [
+        "ادارات",
+        "دستگاه‌های اجرایی",
+        "بانک‌ها",
+        "شرکت‌های بیمه"
+      ],
+      "excludedOrganizations": [
+        "دستگاه‌های خدمات‌رسان",
+        "مراکز درمانی",
+        "نیروهای نظامی و انتظامی",
+        "واحدهای عملیاتی",
+        "نیروهای شیفت‌گردان"
+      ]
     },
     {
       "id": "official-1405-05-13",
