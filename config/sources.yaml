@@ -1,5 +1,5 @@
 expected_public_key_b64: sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18=
-user_agent: KouroshYar-Holiday-Bot/1.1.1 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
+user_agent: KouroshYar-Holiday-Bot/1.2.0 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
 timeout_seconds: 25
 max_response_bytes: 2500000
 current_lookback_hours: 240

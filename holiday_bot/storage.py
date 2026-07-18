@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -92,13 +94,110 @@ def initial_payload(format_name: str) -> dict[str, Any]:
     }
 
 
-def load_existing_payload(envelope_path: Path, payload_path: Path, format_name: str) -> dict[str, Any]:
-    if envelope_path.exists():
-        payload = verify_envelope(read_json(envelope_path, {}))
-        if payload.get("format") != format_name:
-            raise ValueError(f"قالب فایل موجود اشتباه است: {payload.get('format')}")
-        return payload
-    payload = read_json(payload_path, initial_payload(format_name))
+def _payload_revision(payload: dict[str, Any], format_name: str) -> int:
     if payload.get("format") != format_name:
         raise ValueError(f"قالب payload اشتباه است: {payload.get('format')}")
-    return payload
+    revision = payload.get("revision")
+    if not isinstance(revision, int) or revision < 0:
+        raise ValueError("شماره بازبینی payload معتبر نیست.")
+    return revision
+
+
+def _git_file_versions(root: Path, relative_path: str, limit: int = 80) -> list[tuple[str, bytes]]:
+    if not (root / ".git").exists():
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%H", "--all", "--", relative_path],
+            check=True, capture_output=True, text=True, timeout=20,
+        )
+    except Exception:
+        return []
+    versions: list[tuple[str, bytes]] = []
+    for commit in [line.strip() for line in result.stdout.splitlines() if line.strip()][:limit]:
+        try:
+            shown = subprocess.run(
+                ["git", "-C", str(root), "show", f"{commit}:{relative_path}"],
+                check=True, capture_output=True, timeout=10,
+            )
+        except Exception:
+            continue
+        versions.append((commit, shown.stdout))
+    return versions
+
+
+@dataclass(frozen=True)
+class PayloadLoadState:
+    payload: dict[str, Any]
+    highest_revision: int
+    source: str
+    current_envelope_revision: int | None
+    current_payload_revision: int | None
+    restore_required: bool
+    historical_candidates: int
+
+
+def load_existing_payload_state(
+    root: Path,
+    envelope_path: Path,
+    payload_path: Path,
+    format_name: str,
+) -> PayloadLoadState:
+    candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+    current_envelope_revision: int | None = None
+    current_payload_revision: int | None = None
+
+    if envelope_path.exists():
+        payload = verify_envelope(read_json(envelope_path, {}))
+        revision = _payload_revision(payload, format_name)
+        current_envelope_revision = revision
+        candidates.append((revision, 4, "current-envelope", payload))
+    if payload_path.exists():
+        payload = read_json(payload_path, {})
+        revision = _payload_revision(payload, format_name)
+        current_payload_revision = revision
+        candidates.append((revision, 3, "current-payload", payload))
+
+    history_count = 0
+    for path, signed, priority in ((envelope_path, True, 2), (payload_path, False, 1)):
+        try:
+            relative = path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+        for commit, raw in _git_file_versions(root, relative):
+            history_count += 1
+            try:
+                decoded = json.loads(raw.decode("utf-8"))
+                payload = verify_envelope(decoded) if signed else decoded
+                revision = _payload_revision(payload, format_name)
+            except Exception:
+                continue
+            candidates.append((revision, priority, f"git:{commit[:12]}:{relative}", payload))
+
+    if not candidates:
+        payload = initial_payload(format_name)
+        return PayloadLoadState(payload, 0, "initial", None, None, True, history_count)
+
+    # بالاترین revision منبع حقیقت است؛ در تساوی، فایل امضاشده فعلی اولویت دارد.
+    revision, _priority, source, payload = max(candidates, key=lambda item: (item[0], item[1]))
+    restore_required = (
+        current_envelope_revision != revision
+        or current_payload_revision != revision
+        or not envelope_path.exists()
+        or not payload_path.exists()
+    )
+    return PayloadLoadState(
+        payload=dict(payload),
+        highest_revision=revision,
+        source=source,
+        current_envelope_revision=current_envelope_revision,
+        current_payload_revision=current_payload_revision,
+        restore_required=restore_required,
+        historical_candidates=history_count,
+    )
+
+
+def load_existing_payload(envelope_path: Path, payload_path: Path, format_name: str) -> dict[str, Any]:
+    """سازگاری با فراخوان‌های قدیمی؛ بدون بازیابی تاریخچه Git."""
+    common = envelope_path.parent.parent
+    return load_existing_payload_state(common, envelope_path, payload_path, format_name).payload

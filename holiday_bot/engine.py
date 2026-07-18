@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ from .seeds import (
     official_work_schedule_managed_prefixes,
 )
 from .storage import (
-    assert_expected_key, load_existing_payload, load_private_key, read_json, sign_payload, write_json,
+    assert_expected_key, load_existing_payload_state, load_private_key, read_json, sign_payload, write_json,
 )
 from .validate import validate_payloads
 
@@ -156,8 +157,10 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     work_payload_path = root / "data/working_hours.payload.json"
     holiday_envelope_path = feed_dir / "holidays.json"
     work_envelope_path = feed_dir / "working_hours.json"
-    holiday_payload = load_existing_payload(holiday_envelope_path, holiday_payload_path, HOLIDAY_FEED_FORMAT)
-    work_payload = load_existing_payload(work_envelope_path, work_payload_path, WORK_SCHEDULE_FEED_FORMAT)
+    holiday_state = load_existing_payload_state(root, holiday_envelope_path, holiday_payload_path, HOLIDAY_FEED_FORMAT)
+    work_state = load_existing_payload_state(root, work_envelope_path, work_payload_path, WORK_SCHEDULE_FEED_FORMAT)
+    holiday_payload = holiday_state.payload
+    work_payload = work_state.payload
 
     old_holidays = list(holiday_payload.get("holidays", []))
     old_schedules = list(work_payload.get("schedules", []))
@@ -177,12 +180,33 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     old_h_canonical, new_h_canonical = _canonical(old_holidays), _canonical(holidays)
     old_w_canonical, new_w_canonical = _canonical(old_schedules), _canonical(schedules)
     now = started.isoformat()
-    holiday_changed = old_h_canonical != new_h_canonical or int(holiday_payload.get("revision", 0)) < 1
-    work_changed = old_w_canonical != new_w_canonical or int(work_payload.get("revision", 0)) < 1
+    force_publish = os.environ.get("KOUROSHYAR_FORCE_PUBLISH", "").strip().lower() in {"1", "true", "yes", "on"}
+    holiday_changed = (
+        old_h_canonical != new_h_canonical
+        or holiday_state.highest_revision < 1
+        or holiday_state.restore_required
+        or force_publish
+    )
+    work_changed = (
+        old_w_canonical != new_w_canonical
+        or work_state.highest_revision < 1
+        or work_state.restore_required
+        or force_publish
+    )
     if holiday_changed:
-        holiday_payload = {"format": HOLIDAY_FEED_FORMAT, "revision": max(1, int(holiday_payload.get("revision", 0)) + 1), "generatedAt": now, "holidays": holidays}
+        holiday_payload = {
+            "format": HOLIDAY_FEED_FORMAT,
+            "revision": max(1, holiday_state.highest_revision + 1),
+            "generatedAt": now,
+            "holidays": holidays,
+        }
     if work_changed:
-        work_payload = {"format": WORK_SCHEDULE_FEED_FORMAT, "revision": max(1, int(work_payload.get("revision", 0)) + 1), "generatedAt": now, "schedules": schedules}
+        work_payload = {
+            "format": WORK_SCHEDULE_FEED_FORMAT,
+            "revision": max(1, work_state.highest_revision + 1),
+            "generatedAt": now,
+            "schedules": schedules,
+        }
 
     validation = validate_payloads(holiday_payload, work_payload, require_baseline=True)
     pending = _merge_pending(read_json(root / "data/pending.json", []), verified_pending + dynamic_pending)
@@ -196,7 +220,24 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "dynamicHolidayCandidates": len(dynamic_holidays), "dynamicWorkScheduleCandidates": len(dynamic_schedules),
         "dynamicPendingCandidates": len(dynamic_pending), "pendingTotal": len(pending),
         "holidayChanged": holiday_changed, "workingHoursChanged": work_changed,
+        "publishForced": force_publish,
         "holidayRevision": holiday_payload["revision"], "workingHoursRevision": work_payload["revision"],
+        "holidayRecovery": {
+            "source": holiday_state.source,
+            "highestKnownRevision": holiday_state.highest_revision,
+            "currentEnvelopeRevision": holiday_state.current_envelope_revision,
+            "currentPayloadRevision": holiday_state.current_payload_revision,
+            "restoreRequired": holiday_state.restore_required,
+            "historicalCandidates": holiday_state.historical_candidates,
+        },
+        "workingHoursRecovery": {
+            "source": work_state.source,
+            "highestKnownRevision": work_state.highest_revision,
+            "currentEnvelopeRevision": work_state.current_envelope_revision,
+            "currentPayloadRevision": work_state.current_payload_revision,
+            "restoreRequired": work_state.restore_required,
+            "historicalCandidates": work_state.historical_candidates,
+        },
         "validation": validation,
     }
 

@@ -17,7 +17,7 @@ def _parse_iso(value: str) -> None:
     datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def test_seed_payload_matches_app_v3655_schema_and_limits():
+def test_seed_payload_matches_app_v3656_schema_and_limits():
     holidays, _ = load_official_holidays(ROOT)
     schedules = load_official_work_schedules(ROOT, {item["date"] for item in holidays})
     verified_holidays, verified_schedules, _ = load_verified_notices(ROOT)

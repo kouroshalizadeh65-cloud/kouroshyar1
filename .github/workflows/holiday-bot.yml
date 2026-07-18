@@ -18,6 +18,18 @@ on:
         type: boolean
   schedule:
     - cron: "17 * * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "pubspec.yaml"
+      - "holiday_bot/**"
+      - "config/sources.yaml"
+      - "data/official_holidays_1405.json"
+      - "data/official_work_schedules_1405.json"
+      - "data/verified_notices_1405.json"
+      - "HOLIDAY_BOT_VERSION"
+      - ".github/workflows/holiday-bot.yml"
 
 permissions:
   contents: write
@@ -32,7 +44,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout main
+      - name: Checkout complete history
         uses: actions/checkout@v4
         with:
           ref: main
@@ -62,7 +74,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.1.1"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.0"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -114,6 +126,7 @@ jobs:
         env:
           INPUT_MODE: ${{ github.event.inputs.mode }}
           INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          KOUROSHYAR_FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
         run: |
           set -euo pipefail
           MODE="${INPUT_MODE:-current}"
@@ -135,7 +148,8 @@ jobs:
           assert validation["periodicSchedules"] == 1, validation
           assert validation["incidentSchedules"] >= 1, validation
           assert validation["holidays"] >= 28, validation
-          print(json.dumps({"ok": True, "validation": validation, "sourcesFailed": report["sourcesFailed"]}, ensure_ascii=False, indent=2))
+          assert report["holidayRevision"] >= 1 and report["workingHoursRevision"] >= 1, report
+          print(json.dumps({"ok": True, "validation": validation, "holidayRevision": report["holidayRevision"], "workingHoursRevision": report["workingHoursRevision"]}, ensure_ascii=False, indent=2))
           PY
           fi
 
@@ -148,7 +162,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Commit only generated feed and state files
+      - name: Commit and push generated feed
+        id: publish
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
         shell: bash
         run: |
@@ -163,9 +178,59 @@ jobs:
             data/seen.json \
             data/pending.json
           if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.1.1]"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git commit -m "chore: update signed holiday feeds [bot v1.2.0]"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Push failed after 3 attempts."
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          LOCAL_SHA=$(git rev-parse HEAD)
+          REMOTE_SHA=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          test "$LOCAL_SHA" = "$REMOTE_SHA" || { echo "Remote main is not the published commit."; exit 1; }
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$LOCAL_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify files from published GitHub commit
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
+        shell: bash
+        env:
+          PUBLISHED_SHA: ${{ steps.publish.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLISHED_SHA"
+          BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISHED_SHA}/holiday_feed"
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --location "$BASE/holidays.json" -o /tmp/published-holidays.json && \
+               curl --fail --silent --show-error --location "$BASE/working_hours.json" -o /tmp/published-working-hours.json; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then exit 1; fi
+            sleep $((attempt * 3))
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from holiday_bot.storage import read_json, verify_envelope
+          from holiday_bot.validate import validate_payloads
+
+          local_h = verify_envelope(read_json(Path("holiday_feed/holidays.json"), {}))
+          local_w = verify_envelope(read_json(Path("holiday_feed/working_hours.json"), {}))
+          remote_h = verify_envelope(read_json(Path("/tmp/published-holidays.json"), {}))
+          remote_w = verify_envelope(read_json(Path("/tmp/published-working-hours.json"), {}))
+          assert remote_h == local_h, "Published holiday feed differs from generated feed."
+          assert remote_w == local_w, "Published working-hours feed differs from generated feed."
+          stats = validate_payloads(remote_h, remote_w, require_baseline=True)
+          assert stats["holidays"] >= 28 and stats["periodicSchedules"] == 1 and stats["incidentSchedules"] >= 1, stats
+          print(json.dumps({"ok": True, "publishedHolidayRevision": remote_h["revision"], "publishedWorkingHoursRevision": remote_w["revision"], **stats}, ensure_ascii=False, indent=2))
+          PY
