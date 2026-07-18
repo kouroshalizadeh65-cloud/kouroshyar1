@@ -74,7 +74,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.0"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.4"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -183,7 +183,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.2.0]"
+          git commit -m "chore: update signed holiday feeds [bot v1.2.4]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then

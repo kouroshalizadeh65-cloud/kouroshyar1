@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-BOT_VERSION = "1.2.0"
+BOT_VERSION = "1.2.4"
 CLASSIFIER_VERSION = "1.2.0-r1"
 HOLIDAY_FEED_FORMAT = "kouroshyar-holiday-feed-v1"
 WORK_SCHEDULE_FEED_FORMAT = "kouroshyar-work-schedule-feed-v1"
