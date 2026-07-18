@@ -1,0 +1,67 @@
+{
+  "schema": "kouroshyar-source-package-manifest-v1",
+  "appVersion": "3.6.59+131",
+  "packageId": "com.example.kouroshyar",
+  "botVersion": "1.3.0",
+  "classifierVersion": "1.3.0-county-scope",
+  "baseArchive": "kouroshyar_v3_6_58.zip",
+  "baseArchiveSha256": "dfc2c2694464f61901814b6b331214d208ee25e635cafa558c3d5e446537d662",
+  "holidayRevisionFloor": 4,
+  "workingHoursRevisionFloor": 4,
+  "finalFileCount": 259,
+  "hashedFileCount": 258,
+  "modifiedFromBase": [
+    ".github/workflows/build-apk.yml",
+    ".github/workflows/holiday-bot.yml",
+    "CHANGELOG_HOLIDAY_BOT.md",
+    "HOLIDAY_BOT_VERSION",
+    "README.md",
+    "README_HOLIDAY_BOT.md",
+    "android/app/src/main/kotlin/com/example/kouroshyar/MainActivity.kt",
+    "config/sources.yaml",
+    "data/verified_notices_1405.json",
+    "docs/DATA_RULES_FA.md",
+    "holiday_bot/classify.py",
+    "holiday_bot/constants.py",
+    "holiday_bot/models.py",
+    "holiday_bot/validate.py",
+    "holiday_feed/payload.example.json",
+    "lib/features/calendar/calendar_screen.dart",
+    "lib/features/calendar/holiday_update_service.dart",
+    "pubspec.yaml",
+    "test/holiday_update_service_test.dart",
+    "tests/test_app_v3654_compatibility.py",
+    "tests/test_classify.py",
+    "tests/test_seeds.py",
+    "tests/test_workflow.py"
+  ],
+  "addedFromBase": [
+    "CHANGELOG_V3_6_59.md",
+    "PACKAGE_VALIDATION_REPORT_V3_6_59.md",
+    "SOURCE_VALIDATION_V3_6_59.md",
+    "STATIC_VERIFICATION_V3_6_59.txt",
+    "SOURCE_PACKAGE_MANIFEST_V3_6_59.json",
+    "PACKAGE_FILE_HASHES_V3_6_59.json"
+  ],
+  "deletedFromBase": [],
+  "localVerification": {
+    "pythonTests": "25 passed",
+    "botDoctor": "passed; 36 sources; all 31 provinces configured",
+    "staticChecks": "28/28 passed",
+    "flutterTest": "not run locally",
+    "flutterAnalyze": "not run locally",
+    "flutterBuildApk": "not run locally"
+  },
+  "excludedSensitiveFiles": [
+    "*.jks",
+    "*.keystore",
+    "*.pem",
+    "*.key",
+    "key.properties"
+  ],
+  "excludedGeneratedFiles": [
+    "*.apk",
+    "*.aab",
+    "pubspec.lock"
+  ]
+}

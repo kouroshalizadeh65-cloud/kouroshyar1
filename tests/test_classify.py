@@ -24,7 +24,7 @@ def test_national_official_hours_range_is_extracted():
     assert (event.startTime, event.endTime) == ("07:00", "13:00")
 
 
-def test_mixed_ilam_notice_publishes_province_schedule_but_not_county_holiday():
+def test_mixed_ilam_notice_publishes_county_holiday_and_other_counties_schedule():
     item = article(
         "موج گرما دهلران را تعطیل کرد؛ ادارات ایلام دو ساعت زودتر بسته می‌شوند",
         "روابط عمومی استانداری ایلام اعلام کرد فعالیت همه اداره‌ها و بانک‌های شهرستان دهلران در روز چهارشنبه 24 تیرماه 1405 تعطیل خواهد بود. فعالیت ادارات، دستگاه های اجرایی، بانک ها و شرکت های بیمه در دیگر شهرستان های استان در ساعت 11 به پایان می رسد. دستگاه های خدمات رسان و مراکز درمانی مستثنی هستند.",
@@ -32,14 +32,37 @@ def test_mixed_ilam_notice_publishes_province_schedule_but_not_county_holiday():
         "ایلام",
     )
     result = classify_article(item, 1405)
-    assert result.holidays == []
-    assert len(result.work_schedules) == 1
-    event = result.work_schedules[0]
+    assert len(result.holidays) == 1
+    holiday = result.holidays[0]
+    assert holiday.scope == "county"
+    assert holiday.province == "ایلام"
+    assert holiday.counties == ["دهلران"]
+    assert holiday.type == "administrative"
+    assert "ادارات" in holiday.includedOrganizations
+
+    assert len(result.work_schedules) >= 1
+    event = next(item for item in result.work_schedules if item.endTime == "11:00")
     assert event.province == "ایلام"
     assert event.scheduleType == "early_close"
-    assert event.endTime == "11:00"
-    assert any("شهرستان دهلران" == x for x in event.excludedOrganizations)
-    assert any("دامنه" in x.reason or "شهرستان" in x.reason for x in result.pending)
+    assert event.scope == "province"
+    assert event.excludedCounties == ["دهلران"]
+    assert not result.pending
+
+
+def test_multiple_county_groups_are_kept_separate():
+    item = article(
+        "کاهش ساعت کاری ادارات ایلام",
+        "روابط عمومی استانداری ایلام اعلام کرد روز سه شنبه 23 تیر 1405 پایان کار در شهرستان های دهلران، مهران، آبدانان، دره شهر و سیروان ساعت 11 خواهد بود. همچنین در دیگر شهرستان های استان پایان کار ساعت 12 است.",
+        "https://www.irna.ir/news/86208627/",
+        "ایلام",
+    )
+    result = classify_article(item, 1405)
+    county = next(event for event in result.work_schedules if event.scope == "county")
+    remainder = next(event for event in result.work_schedules if event.scope == "province" and event.excludedCounties)
+    assert county.counties == ["دهلران", "مهران", "آبدانان", "دره شهر", "سیروان"]
+    assert county.endTime == "11:00"
+    assert remainder.excludedCounties == county.counties
+    assert remainder.endTime == "12:00"
 
 
 def test_rumor_or_denial_never_publishes():

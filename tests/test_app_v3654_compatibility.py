@@ -9,7 +9,7 @@ from holiday_bot.validate import validate_payloads
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_HOLIDAY_TYPES = {"official", "national_emergency", "provincial", "administrative", "judiciary"}
 ALLOWED_SCHEDULE_TYPES = {"changed_hours", "remote_work", "delayed_start", "early_close"}
-ALLOWED_SCOPES = {"national", "province", "organization"}
+ALLOWED_SCOPES = {"national", "province", "county", "organization"}
 ALLOWED_STATUSES = {"active", "updated", "cancelled"}
 
 
@@ -17,7 +17,7 @@ def _parse_iso(value: str) -> None:
     datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def test_seed_payload_matches_app_v3656_schema_and_limits():
+def test_seed_payload_matches_app_v3659_schema_and_limits():
     holidays, _ = load_official_holidays(ROOT)
     schedules = load_official_work_schedules(ROOT, {item["date"] for item in holidays})
     verified_holidays, verified_schedules, _ = load_verified_notices(ROOT)
@@ -37,6 +37,11 @@ def test_seed_payload_matches_app_v3656_schema_and_limits():
         assert len(item["id"]) <= 120
         _parse_iso(item["publishedAt"])
         assert str(item["sourceUrl"]).startswith("https://")
+        if item["scope"] == "county":
+            assert item.get("province")
+            assert item.get("counties")
+        if item.get("excludedCounties"):
+            assert item.get("province")
     for item in schedules:
         assert item["scheduleType"] in ALLOWED_SCHEDULE_TYPES
         assert item["scope"] in ALLOWED_SCOPES
@@ -44,6 +49,11 @@ def test_seed_payload_matches_app_v3656_schema_and_limits():
         assert len(item["id"]) <= 120
         _parse_iso(item["publishedAt"])
         assert str(item["sourceUrl"]).startswith("https://")
+        if item["scope"] == "county":
+            assert item.get("province")
+            assert item.get("counties")
+        if item.get("excludedCounties"):
+            assert item.get("province")
         for key in ("startTime", "endTime"):
             if key in item:
                 assert len(item[key]) == 5 and item[key][2] == ":"

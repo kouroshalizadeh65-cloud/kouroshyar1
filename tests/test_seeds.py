@@ -26,10 +26,37 @@ def test_official_work_range_is_one_periodic_record():
     assert schedule["endTime"] == "13:00"
 
 
-def test_verified_ilam_notice_is_included_without_county_wide_false_positive():
+def test_verified_notices_preserve_county_scope_and_remainder_rules():
     holidays, schedules, pending = load_verified_notices(ROOT)
-    holiday_ids = {item["id"] for item in holidays}
-    assert {"holiday-national-1405-04-14-mourning", "holiday-national-1405-04-15-funeral"}.issubset(holiday_ids)
-    assert schedules[0]["id"] == "work-ilam-1405-04-24-early-close-11"
-    assert schedules[0]["endTime"] == "11:00"
-    assert any("شهرستانی" in item["reason"] for item in pending)
+    holiday_by_id = {item["id"]: item for item in holidays}
+    schedule_by_id = {item["id"]: item for item in schedules}
+
+    assert {
+        "holiday-national-1405-04-14-mourning",
+        "holiday-national-1405-04-15-funeral",
+        "holiday-ilam-dehloran-1405-04-24",
+    }.issubset(holiday_by_id)
+
+    dehloran = holiday_by_id["holiday-ilam-dehloran-1405-04-24"]
+    assert dehloran["scope"] == "county"
+    assert dehloran["province"] == "ایلام"
+    assert dehloran["counties"] == ["دهلران"]
+
+    hot_counties = schedule_by_id["work-ilam-1405-04-23-hot-counties-close-11"]
+    assert hot_counties["scope"] == "county"
+    assert hot_counties["endTime"] == "11:00"
+    assert hot_counties["counties"] == ["دهلران", "مهران", "آبدانان", "دره‌شهر", "سیروان"]
+
+    other_counties = schedule_by_id["work-ilam-1405-04-23-other-counties-close-12"]
+    assert other_counties["scope"] == "province"
+    assert other_counties["endTime"] == "12:00"
+    assert other_counties["excludedCounties"] == hot_counties["counties"]
+
+    ilam_24 = schedule_by_id["work-ilam-1405-04-24-early-close-11"]
+    assert ilam_24["scope"] == "province"
+    assert ilam_24["excludedCounties"] == ["دهلران"]
+    assert ilam_24["endTime"] == "11:00"
+
+    assert schedule_by_id["work-khuzestan-1405-04-23-close-11"]["endTime"] == "11:00"
+    assert schedule_by_id["work-khuzestan-1405-04-24-remote"]["scheduleType"] == "remote_work"
+    assert pending == []

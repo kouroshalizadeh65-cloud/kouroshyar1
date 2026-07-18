@@ -89,6 +89,24 @@ jobs:
             --dart-define=KOUROSHYAR_HOLIDAY_PUBLIC_KEY="$KOUROSHYAR_HOLIDAY_PUBLIC_KEY" \
             --dart-define=KOUROSHYAR_WORKING_HOURS_FEED_URL="$KOUROSHYAR_WORKING_HOURS_FEED_URL"
 
+      - name: Resolve release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_SPEC=$(awk '/^version:/ {print $2; exit}' pubspec.yaml)
+          test -n "$VERSION_SPEC" || { echo "::error::Version is missing from pubspec.yaml."; exit 1; }
+          VERSION_NAME="${VERSION_SPEC%%+*}"
+          VERSION_CODE="${VERSION_SPEC##*+}"
+          test "$VERSION_NAME" != "$VERSION_SPEC" || { echo "::error::Version code is missing from pubspec.yaml."; exit 1; }
+          [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid version name: $VERSION_NAME"; exit 1; }
+          [[ "$VERSION_CODE" =~ ^[0-9]+$ ]] || { echo "::error::Invalid version code: $VERSION_CODE"; exit 1; }
+          VERSION_FILE="kouroshyar_v${VERSION_NAME//./_}+${VERSION_CODE}.apk"
+          ARTIFACT_NAME="kouroshyar-v${VERSION_NAME//./-}-${VERSION_CODE}-apk"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "APK_OUTPUT_PATH=build/app/outputs/flutter-apk/$VERSION_FILE" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> "$GITHUB_ENV"
+
       - name: Verify APK signature and package
         shell: bash
         run: |
@@ -102,6 +120,14 @@ jobs:
             echo "::error::Unexpected applicationId. Update installation compatibility is not guaranteed."
             exit 1
           }
+          echo "$PACKAGE_INFO" | grep -q "versionCode='$VERSION_CODE'" || {
+            echo "::error::APK versionCode does not match pubspec.yaml."
+            exit 1
+          }
+          echo "$PACKAGE_INFO" | grep -q "versionName='$VERSION_NAME'" || {
+            echo "::error::APK versionName does not match pubspec.yaml."
+            exit 1
+          }
           if [ -n "${{ vars.KOUROSHYAR_CERT_SHA256 }}" ]; then
             ACTUAL=$(grep -i "Signer #1 certificate SHA-256 digest:" build/apksigner-report.txt | head -n1 | cut -d: -f2- | tr -d ' :\r\n' | tr '[:lower:]' '[:upper:]')
             EXPECTED=$(printf '%s' "${{ vars.KOUROSHYAR_CERT_SHA256 }}" | tr -d ' :\r\n' | tr '[:lower:]' '[:upper:]')
@@ -112,16 +138,15 @@ jobs:
           fi
 
       - name: Rename APK with version
-        run: |
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            build/app/outputs/flutter-apk/kouroshyar_v3_6_55_periodic_hours_holidays_1405_04_28.apk
+        shell: bash
+        run: cp build/app/outputs/flutter-apk/app-release.apk "$APK_OUTPUT_PATH"
 
       - name: Upload APK and verification reports
         uses: actions/upload-artifact@v4
         with:
-          name: kouroshyar-v3-6-55-periodic-hours-holidays-1405-04-28-apk
+          name: ${{ env.ARTIFACT_NAME }}
           path: |
-            build/app/outputs/flutter-apk/kouroshyar_v3_6_55_periodic_hours_holidays_1405_04_28.apk
+            ${{ env.APK_OUTPUT_PATH }}
             build/apksigner-report.txt
             build/package-report.txt
             pubspec.lock

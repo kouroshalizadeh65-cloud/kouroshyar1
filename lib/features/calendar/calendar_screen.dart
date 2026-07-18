@@ -1248,6 +1248,7 @@ class _MonthCalendarView extends StatelessWidget {
                         isToday: _sameDate(day, DateTime.now()),
                         isHoliday: _isHoliday(day, settings),
                         holidayTitle: _holidayTitle(day, settings),
+                        hasLocalHoliday: _hasLocalHoliday(day, settings),
                         hasWorkSchedule: _hasWorkSchedule(day, settings),
                         items: itemsForDay(day),
                         onTap: () => onSelectDay(day),
@@ -1344,12 +1345,14 @@ class _YearCalendarView extends StatelessWidget {
         final end = month == 12 ? jalaliToGregorian(j.year + 1, 1, 1).subtract(const Duration(days: 1)) : jalaliToGregorian(j.year, month + 1, 1).subtract(const Duration(days: 1));
         final monthItems = itemsBetween(items, start, end);
         final holidayCount = _holidayCountInRange(start, end, settings);
+        final localHolidayCount = _localHolidayCountInRange(start, end, settings);
         final workScheduleCount = _workScheduleCountInRange(start, end, settings);
         return _YearMonthCard(
           year: j.year,
           month: month,
           items: monthItems,
           holidayCount: holidayCount,
+          localHolidayCount: localHolidayCount,
           workScheduleCount: workScheduleCount,
           onTap: () => onSelectMonth(start),
         );
@@ -1381,6 +1384,7 @@ class _WeekDayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final j = gregorianToJalali(day);
     final holiday = _isHoliday(day, settings);
+    final localHoliday = _hasLocalHoliday(day, settings);
     final hasWorkSchedule = _hasWorkSchedule(day, settings);
     final error = Theme.of(context).colorScheme.error;
     final workColor = Colors.orange.shade700;
@@ -1399,10 +1403,12 @@ class _WeekDayCard extends StatelessWidget {
                   ? Theme.of(context).colorScheme.primary
                   : holiday
                       ? error.withOpacity(0.65)
-                      : hasWorkSchedule
+                      : localHoliday
+                          ? Colors.deepOrange.withOpacity(0.65)
+                          : hasWorkSchedule
                           ? workColor.withOpacity(0.65)
                           : Colors.transparent,
-              width: isToday || holiday || hasWorkSchedule ? 1.5 : 1,
+              width: isToday || holiday || localHoliday || hasWorkSchedule ? 1.5 : 1,
             ),
           ),
           child: Padding(
@@ -1423,13 +1429,15 @@ class _WeekDayCard extends StatelessWidget {
                 ),
                 Text('${_monthName(j.month)} ${toPersianDigits(j.year.toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 const Spacer(),
-                if (holiday || hasWorkSchedule)
+                if (holiday || localHoliday || hasWorkSchedule)
                   Wrap(
                     spacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (holiday)
                         Text('تعطیل', style: TextStyle(fontSize: 10, color: error, fontWeight: FontWeight.bold)),
+                      if (localHoliday)
+                        Text('تعطیلی محلی', style: TextStyle(fontSize: 9, color: Colors.deepOrange.shade800, fontWeight: FontWeight.bold)),
                       if (hasWorkSchedule) Icon(Icons.access_time_filled, size: 14, color: workColor),
                     ],
                   )
@@ -1463,6 +1471,7 @@ class _MonthDayCell extends StatelessWidget {
     required this.isToday,
     required this.isHoliday,
     required this.holidayTitle,
+    required this.hasLocalHoliday,
     required this.hasWorkSchedule,
     required this.items,
     required this.onTap,
@@ -1473,6 +1482,7 @@ class _MonthDayCell extends StatelessWidget {
   final bool isToday;
   final bool isHoliday;
   final String? holidayTitle;
+  final bool hasLocalHoliday;
   final bool hasWorkSchedule;
   final List<_CalendarItem> items;
   final VoidCallback onTap;
@@ -1482,12 +1492,15 @@ class _MonthDayCell extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final opacity = inCurrentMonth ? 1.0 : 0.62;
     final error = scheme.error;
+    final localColor = Colors.deepOrange.shade700;
     final workColor = Colors.orange.shade700;
     final borderColor = isToday
         ? scheme.primary
         : isHoliday
             ? error.withOpacity(0.7)
-            : hasWorkSchedule
+            : hasLocalHoliday
+                ? localColor.withOpacity(0.72)
+                : hasWorkSchedule
                 ? workColor.withOpacity(0.65)
                 : scheme.outlineVariant;
     final fill = isToday
@@ -1522,14 +1535,18 @@ class _MonthDayCell extends StatelessWidget {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dayTextColor),
                   ),
                   const Spacer(),
+                  if (hasLocalHoliday) Icon(Icons.location_on, size: 13, color: localColor),
+                  if (hasLocalHoliday && hasWorkSchedule) const SizedBox(width: 2),
                   if (hasWorkSchedule) Icon(Icons.access_time_filled, size: 13, color: workColor),
-                  if (hasWorkSchedule && isHoliday) const SizedBox(width: 2),
+                  if ((hasWorkSchedule || hasLocalHoliday) && isHoliday) const SizedBox(width: 2),
                   if (isHoliday) Icon(Icons.circle, size: 7, color: error),
                 ],
               ),
               const SizedBox(height: 2),
               if (holidayTitle != null)
                 Text('تعطیل', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: error, fontWeight: FontWeight.bold)),
+              if (holidayTitle == null && hasLocalHoliday)
+                Text('تعطیلی محلی', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: localColor, fontWeight: FontWeight.bold)),
               if (items.isEmpty)
                 const Spacer()
               else ...[
@@ -1551,6 +1568,7 @@ class _YearMonthCard extends StatelessWidget {
     required this.month,
     required this.items,
     required this.holidayCount,
+    required this.localHolidayCount,
     required this.workScheduleCount,
     required this.onTap,
   });
@@ -1559,6 +1577,7 @@ class _YearMonthCard extends StatelessWidget {
   final int month;
   final List<_CalendarItem> items;
   final int holidayCount;
+  final int localHolidayCount;
   final int workScheduleCount;
   final VoidCallback onTap;
 
@@ -1582,6 +1601,7 @@ class _YearMonthCard extends StatelessWidget {
               _YearLine(icon: Icons.groups, label: 'جلسه', count: sessionCount),
               _YearLine(icon: Icons.task_alt, label: 'کار', count: taskCount),
               _YearLine(icon: Icons.event_busy, label: 'تعطیل', count: holidayCount),
+              _YearLine(icon: Icons.location_on, label: 'تعطیلی محلی', count: localHolidayCount),
               _YearLine(icon: Icons.access_time_filled, label: 'تغییر ساعت', count: workScheduleCount),
               const Spacer(),
               Text('ورود به ماه', textAlign: TextAlign.left, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
@@ -1624,18 +1644,97 @@ class _HolidayBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = _holidayTitle(day, settings);
-    if (title == null) return const SizedBox.shrink();
+    final localEvents = _localHolidayEventsForDate(day, settings);
+    if (title == null && localEvents.isEmpty) return const SizedBox.shrink();
     final error = Theme.of(context).colorScheme.error;
-    return Card(
-      color: error.withOpacity(0.12),
-      child: ListTile(
-        leading: Icon(Icons.event_busy, color: error),
-        title: Text('روز تعطیل', style: TextStyle(color: error, fontWeight: FontWeight.bold)),
-        subtitle: Text(title),
-        dense: true,
-      ),
+    final localColor = Colors.deepOrange.shade800;
+    return Column(
+      children: [
+        if (title != null)
+          Card(
+            color: error.withOpacity(0.12),
+            child: ListTile(
+              leading: Icon(Icons.event_busy, color: error),
+              title: Text('روز تعطیل', style: TextStyle(color: error, fontWeight: FontWeight.bold)),
+              subtitle: Text(title),
+              dense: true,
+            ),
+          ),
+        for (final event in localEvents)
+          Card(
+            color: localColor.withOpacity(0.10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: localColor.withOpacity(0.42)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _showLocalHolidayDetails(context, day: day, event: event),
+              child: ListTile(
+                leading: Icon(Icons.location_on, color: localColor),
+                title: Text('تعطیلی محلی', style: TextStyle(color: localColor, fontWeight: FontWeight.bold)),
+                subtitle: Text('${event.locationLabel}\n${event.title}'),
+                trailing: Icon(Icons.chevron_left_rounded, color: localColor),
+                dense: true,
+              ),
+            ),
+          ),
+      ],
     );
   }
+}
+
+Future<void> _showLocalHolidayDetails(
+  BuildContext context, {
+  required DateTime day,
+  required OfficialHolidayUpdate event,
+}) async {
+  final scheme = Theme.of(context).colorScheme;
+  final published = event.publishedAt.toLocal();
+  final publishedText = toPersianDigits(
+    '${published.year.toString().padLeft(4, '0')}/${published.month.toString().padLeft(2, '0')}/${published.day.toString().padLeft(2, '0')} '
+    '${published.hour.toString().padLeft(2, '0')}:${published.minute.toString().padLeft(2, '0')}',
+  );
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => Directionality(
+      textDirection: TextDirection.rtl,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + MediaQuery.of(sheetContext).viewInsets.bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('تعطیلی محلی', style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 14),
+            _WorkScheduleDetailLine(label: 'تاریخ اجرا', value: formatPersianLongDate(day)),
+            _WorkScheduleDetailLine(label: 'محدوده اجرا', value: event.locationLabel),
+            _WorkScheduleDetailLine(label: 'عنوان اطلاعیه', value: event.title),
+            _WorkScheduleDetailLine(label: 'نوع', value: event.typeLabel),
+            if (event.includedOrganizations.isNotEmpty)
+              _WorkScheduleDetailLine(label: 'مشمولان', value: event.includedOrganizations.join('، ')),
+            if (event.excludedOrganizations.isNotEmpty)
+              _WorkScheduleDetailLine(label: 'موارد مستثنا', value: event.excludedOrganizations.join('، ')),
+            if (event.excludedCounties.isNotEmpty)
+              _WorkScheduleDetailLine(label: 'شهرستان‌های مستثنا', value: event.excludedCounties.join('، ')),
+            _WorkScheduleDetailLine(label: 'مرجع رسمی', value: event.authority),
+            _WorkScheduleDetailLine(label: 'زمان انتشار', value: publishedText),
+            if (event.note != null && event.note!.trim().isNotEmpty)
+              _WorkScheduleDetailLine(label: 'توضیحات', value: event.note!.trim()),
+            if (event.sourceUrl != null && event.sourceUrl!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('منبع رسمی', style: TextStyle(fontWeight: FontWeight.bold, color: scheme.primary)),
+              const SizedBox(height: 4),
+              SelectableText(event.sourceUrl!.trim(), style: TextStyle(color: scheme.onSurfaceVariant)),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 
@@ -1800,6 +1899,8 @@ Future<void> _showWorkScheduleDetails(
                 _WorkScheduleDetailLine(label: 'مشمولان', value: schedule.includedOrganizations.join('، ')),
               if (schedule.excludedOrganizations.isNotEmpty)
                 _WorkScheduleDetailLine(label: 'موارد مستثنا', value: schedule.excludedOrganizations.join('، ')),
+              if (schedule.excludedCounties.isNotEmpty)
+                _WorkScheduleDetailLine(label: 'شهرستان‌های مستثنا', value: schedule.excludedCounties.join('، ')),
               _WorkScheduleDetailLine(label: 'مرجع رسمی', value: schedule.authority),
               _WorkScheduleDetailLine(label: 'زمان انتشار', value: publishedText),
               if (schedule.note != null && schedule.note!.trim().isNotEmpty)
@@ -2196,21 +2297,38 @@ HolidayFeedSnapshot? _onlineHolidayFeed(CalendarSetting settings) {
   return _cachedHolidayFeedSnapshot;
 }
 
-String? _onlineHolidayTitle(DateTime date, CalendarSetting settings) {
+List<OfficialHolidayUpdate> _onlineHolidayEventsForDate(DateTime date, CalendarSetting settings) {
   final feed = _onlineHolidayFeed(settings);
-  if (feed == null) return null;
+  if (feed == null) return const <OfficialHolidayUpdate>[];
   final j = gregorianToJalali(date);
   final key = _holidayKey(j.year, j.month, j.day);
   final matches = feed.holidays
       .where((item) => item.jalaliDate == key && item.appliesToProvince(settings.holidayProvince))
       .toList(growable: false)
     ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+  return matches;
+}
+
+String? _onlineHolidayTitle(DateTime date, CalendarSetting settings) {
+  final matches = _onlineHolidayEventsForDate(date, settings)
+      .where((item) => item.isFullDayHolidayForProvince(settings.holidayProvince))
+      .toList(growable: false);
   if (matches.isEmpty) return null;
   return matches
       .map((item) => '${item.typeLabel}: ${item.title} — مرجع: ${item.authority}')
       .toSet()
       .join(' | ');
 }
+
+List<OfficialHolidayUpdate> _localHolidayEventsForDate(DateTime date, CalendarSetting settings) {
+  if (!settings.onlineHolidayUpdatesEnabled) return const <OfficialHolidayUpdate>[];
+  return _onlineHolidayEventsForDate(date, settings)
+      .where((item) => !item.isFullDayHolidayForProvince(settings.holidayProvince))
+      .toList(growable: false);
+}
+
+bool _hasLocalHoliday(DateTime date, CalendarSetting settings) =>
+    _localHolidayEventsForDate(date, settings).isNotEmpty;
 
 
 String? _cachedWorkScheduleFeedSource;
@@ -2273,7 +2391,8 @@ String _periodicScheduleDescription(WorkScheduleUpdate schedule, String selected
           : endTime != null
               ? '، تا ساعت $endTime'
               : '';
-  return 'ساعت کاری ادارات استان $selectedProvince $range$time است.';
+  final location = schedule.scope == 'national' ? 'استان $selectedProvince' : schedule.locationLabel;
+  return 'ساعت کاری ادارات $location $range$time است.';
 }
 
 String _formatJalaliKeyLong(String key) {
@@ -2287,6 +2406,17 @@ int _workScheduleCountInRange(DateTime start, DateTime end, CalendarSetting sett
   final last = DateTime(end.year, end.month, end.day);
   while (!day.isAfter(last)) {
     if (_hasWorkSchedule(day, settings)) count += 1;
+    day = day.add(const Duration(days: 1));
+  }
+  return count;
+}
+
+int _localHolidayCountInRange(DateTime start, DateTime end, CalendarSetting settings) {
+  var count = 0;
+  var day = DateTime(start.year, start.month, start.day);
+  final last = DateTime(end.year, end.month, end.day);
+  while (!day.isAfter(last)) {
+    if (_hasLocalHoliday(day, settings)) count += 1;
     day = day.add(const Duration(days: 1));
   }
   return count;

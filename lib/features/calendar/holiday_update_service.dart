@@ -102,6 +102,8 @@ class OfficialHolidayUpdate {
     required this.publishedAt,
     required this.status,
     this.province,
+    this.counties = const <String>[],
+    this.excludedCounties = const <String>[],
     this.sourceUrl,
     this.includedOrganizations = const <String>[],
     this.excludedOrganizations = const <String>[],
@@ -114,6 +116,8 @@ class OfficialHolidayUpdate {
   final String type;
   final String scope;
   final String? province;
+  final List<String> counties;
+  final List<String> excludedCounties;
   final String authority;
   final String? sourceUrl;
   final DateTime publishedAt;
@@ -123,6 +127,26 @@ class OfficialHolidayUpdate {
   final String? note;
 
   bool get isActive => status == 'active' || status == 'updated';
+
+  bool get isCountyScoped => scope == 'county' || counties.isNotEmpty;
+
+  bool get isProvinceWide => scope == 'province' && counties.isEmpty && excludedCounties.isEmpty;
+
+  String get locationLabel {
+    if (scope == 'national') return 'سراسر کشور';
+    if (isCountyScoped) {
+      final names = counties.map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
+      if (names.isNotEmpty) return 'شهرستان‌های ${names.join('، ')}';
+    }
+    final name = province?.trim() ?? '';
+    if (name.isNotEmpty) {
+      if (excludedCounties.isNotEmpty) {
+        return 'استان $name به‌جز شهرستان‌های ${excludedCounties.join('، ')}';
+      }
+      return 'استان $name';
+    }
+    return 'محدوده اعلام‌شده';
+  }
 
   String get typeLabel => switch (type) {
         'official' => 'تعطیل رسمی',
@@ -136,10 +160,15 @@ class OfficialHolidayUpdate {
   bool appliesToProvince(String selectedProvince) {
     if (!isActive) return false;
     if (scope == 'national') return true;
-    if (scope != 'province') return false;
+    if (scope != 'province' && scope != 'county') return false;
     final eventProvince = province?.trim() ?? '';
     if (eventProvince.isEmpty) return false;
     return eventProvince == selectedProvince.trim();
+  }
+
+  bool isFullDayHolidayForProvince(String selectedProvince) {
+    if (!appliesToProvince(selectedProvince)) return false;
+    return scope == 'national' || isProvinceWide;
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -149,6 +178,8 @@ class OfficialHolidayUpdate {
         'type': type,
         'scope': scope,
         if (province != null) 'province': province,
+        if (counties.isNotEmpty) 'counties': counties,
+        if (excludedCounties.isNotEmpty) 'excludedCounties': excludedCounties,
         'authority': authority,
         if (sourceUrl != null) 'sourceUrl': sourceUrl,
         'publishedAt': publishedAt.toIso8601String(),
@@ -169,7 +200,7 @@ class OfficialHolidayUpdate {
       'administrative',
       'judiciary',
     };
-    const allowedScopes = <String>{'national', 'province', 'organization'};
+    const allowedScopes = <String>{'national', 'province', 'county', 'organization'};
     const allowedStatuses = <String>{'active', 'updated', 'cancelled'};
 
     final type = _requiredText(json, 'type', maxLength: 40);
@@ -179,13 +210,25 @@ class OfficialHolidayUpdate {
     if (!allowedScopes.contains(scope)) throw HolidayUpdateException('محدوده تعطیلی ناشناخته است: $scope');
     if (!allowedStatuses.contains(status)) throw HolidayUpdateException('وضعیت تعطیلی ناشناخته است: $status');
 
+    final counties = _stringList(json, 'counties');
+    final excludedCounties = _stringList(json, 'excludedCounties');
+    final province = json['province']?.toString().trim();
+    if ((scope == 'province' || scope == 'county') && (province == null || province.isEmpty)) {
+      throw const HolidayUpdateException('استان رویداد تعطیلی مشخص نشده است.');
+    }
+    if (scope == 'county' && counties.isEmpty) {
+      throw const HolidayUpdateException('برای تعطیلی شهرستانی باید نام شهرستان درج شود.');
+    }
+
     return OfficialHolidayUpdate(
       id: _requiredText(json, 'id', maxLength: 120),
       jalaliDate: date,
       title: _requiredText(json, 'title'),
       type: type,
       scope: scope,
-      province: json['province']?.toString().trim(),
+      province: province,
+      counties: counties,
+      excludedCounties: excludedCounties,
       authority: _requiredText(json, 'authority'),
       sourceUrl: _httpsUrlOrNull(json, 'sourceUrl'),
       publishedAt: _publishedAt(json),
@@ -208,6 +251,8 @@ class WorkScheduleUpdate {
     required this.publishedAt,
     required this.status,
     this.province,
+    this.counties = const <String>[],
+    this.excludedCounties = const <String>[],
     this.endJalaliDate,
     this.startTime,
     this.endTime,
@@ -224,6 +269,8 @@ class WorkScheduleUpdate {
   final String scheduleType;
   final String scope;
   final String? province;
+  final List<String> counties;
+  final List<String> excludedCounties;
   final String authority;
   final String? sourceUrl;
   final DateTime publishedAt;
@@ -235,6 +282,24 @@ class WorkScheduleUpdate {
   final String? note;
 
   bool get isActive => status == 'active' || status == 'updated';
+
+  bool get isCountyScoped => scope == 'county' || counties.isNotEmpty;
+
+  String get locationLabel {
+    if (scope == 'national') return 'سراسر کشور';
+    if (isCountyScoped) {
+      final names = counties.map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
+      if (names.isNotEmpty) return 'شهرستان‌های ${names.join('، ')}';
+    }
+    final name = province?.trim() ?? '';
+    if (name.isNotEmpty) {
+      if (excludedCounties.isNotEmpty) {
+        return 'استان $name به‌جز شهرستان‌های ${excludedCounties.join('، ')}';
+      }
+      return 'استان $name';
+    }
+    return 'محدوده اعلام‌شده';
+  }
 
   bool get isPeriodicSchedule =>
       scheduleType == 'changed_hours' && endJalaliDate != null && endJalaliDate != jalaliDate;
@@ -252,7 +317,8 @@ class WorkScheduleUpdate {
 
   String get scopeLabel => switch (scope) {
         'national' => 'سراسری',
-        'province' => province == null || province!.trim().isEmpty ? 'استانی' : 'استان ${province!.trim()}',
+        'province' => locationLabel,
+        'county' => locationLabel,
         _ => 'محدود به دستگاه‌های اعلام‌شده',
       };
 
@@ -274,19 +340,21 @@ class WorkScheduleUpdate {
       return prefix;
     }
 
-    return switch (scheduleType) {
+    final summary = switch (scheduleType) {
       'early_close' => rangeLabel('کاهش ساعت اداری'),
       'delayed_start' => effectiveStart == null ? 'تأخیر در آغاز ساعت اداری' : 'آغاز ساعت اداری از ساعت $effectiveStart',
       'changed_hours' => rangeLabel('تغییر ساعت اداری'),
       'remote_work' => 'دورکاری ادارات',
       _ => rangeLabel('تغییر برنامه اداری'),
     };
+    if (!isCountyScoped && excludedCounties.isEmpty) return summary;
+    return '$locationLabel: $summary';
   }
 
   bool appliesToProvince(String selectedProvince) {
     if (!isActive) return false;
     if (scope == 'national') return true;
-    if (scope != 'province') return false;
+    if (scope != 'province' && scope != 'county') return false;
     final eventProvince = province?.trim() ?? '';
     if (eventProvince.isEmpty) return false;
     return eventProvince == selectedProvince.trim();
@@ -305,6 +373,8 @@ class WorkScheduleUpdate {
         'scheduleType': scheduleType,
         'scope': scope,
         if (province != null) 'province': province,
+        if (counties.isNotEmpty) 'counties': counties,
+        if (excludedCounties.isNotEmpty) 'excludedCounties': excludedCounties,
         'authority': authority,
         if (sourceUrl != null) 'sourceUrl': sourceUrl,
         'publishedAt': publishedAt.toIso8601String(),
@@ -328,7 +398,7 @@ class WorkScheduleUpdate {
     }
 
     const allowedTypes = <String>{'changed_hours', 'remote_work', 'delayed_start', 'early_close'};
-    const allowedScopes = <String>{'national', 'province', 'organization'};
+    const allowedScopes = <String>{'national', 'province', 'county', 'organization'};
     const allowedStatuses = <String>{'active', 'updated', 'cancelled'};
     final scheduleType = _requiredText(json, 'scheduleType', maxLength: 40);
     final scope = _requiredText(json, 'scope', maxLength: 40);
@@ -339,6 +409,16 @@ class WorkScheduleUpdate {
     if (!allowedScopes.contains(scope)) throw HolidayUpdateException('محدوده تغییر ساعات کاری ناشناخته است: $scope');
     if (!allowedStatuses.contains(status)) throw HolidayUpdateException('وضعیت تغییر ساعات کاری ناشناخته است: $status');
 
+    final counties = _stringList(json, 'counties');
+    final excludedCounties = _stringList(json, 'excludedCounties');
+    final province = json['province']?.toString().trim();
+    if ((scope == 'province' || scope == 'county') && (province == null || province.isEmpty)) {
+      throw const HolidayUpdateException('استان تغییر ساعات کاری مشخص نشده است.');
+    }
+    if (scope == 'county' && counties.isEmpty) {
+      throw const HolidayUpdateException('برای تغییر ساعت شهرستانی باید نام شهرستان درج شود.');
+    }
+
     return WorkScheduleUpdate(
       id: _requiredText(json, 'id', maxLength: 120),
       jalaliDate: date,
@@ -346,7 +426,9 @@ class WorkScheduleUpdate {
       title: _requiredText(json, 'title'),
       scheduleType: scheduleType,
       scope: scope,
-      province: json['province']?.toString().trim(),
+      province: province,
+      counties: counties,
+      excludedCounties: excludedCounties,
       authority: _requiredText(json, 'authority'),
       sourceUrl: _httpsUrlOrNull(json, 'sourceUrl'),
       publishedAt: _publishedAt(json),
@@ -625,7 +707,7 @@ class HolidayUpdateService {
     }
     final bytes = await _downloadEnvelope(
       feedUrl: feedUrl,
-      userAgent: 'KouroshYar/3.6.57 holiday-updater',
+      userAgent: 'KouroshYar/3.6.59 holiday-updater',
       suppliedClient: _httpClient,
     );
     return verifyEnvelope(bytes, currentRevision: currentRevision);
@@ -671,7 +753,7 @@ class WorkScheduleUpdateService {
     }
     final bytes = await _downloadEnvelope(
       feedUrl: feedUrl,
-      userAgent: 'KouroshYar/3.6.57 working-hours-updater',
+      userAgent: 'KouroshYar/3.6.59 working-hours-updater',
       suppliedClient: _httpClient,
     );
     return verifyEnvelope(bytes, currentRevision: currentRevision);

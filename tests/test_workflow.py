@@ -21,6 +21,10 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     assert "data/revision_floor.json" in text
     assert "report[\"holidayRevision\"] >= 4" in text
     assert "published-revision-floor.json" in text
+    push_paths = text.split("paths:", 1)[1].split("permissions:", 1)[0]
+    assert "pubspec.yaml" not in push_paths
+    assert "data/manual_overrides.json" in push_paths
+    assert "[bot v1.3.0]" in text
 
 
 def test_no_sensitive_key_files_in_payload():
@@ -30,3 +34,23 @@ def test_no_sensitive_key_files_in_payload():
         if path.is_file() and (path.suffix.lower() in {".pem", ".key", ".jks", ".keystore"} or path.name == "key.properties"):
             forbidden.append(path)
     assert forbidden == []
+
+
+def test_all_31_province_feeds_are_configured():
+    import yaml
+    from holiday_bot.constants import PROVINCES
+
+    root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((root / "config" / "sources.yaml").read_text(encoding="utf-8"))
+    configured = {item.get("province") for item in config["sources"] if item.get("province")}
+    assert configured == set(PROVINCES)
+
+
+def test_android_artifact_name_and_version_checks_are_derived_from_pubspec():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / ".github" / "workflows" / "build-apk.yml").read_text(encoding="utf-8")
+    assert "VERSION_SPEC=$(awk '/^version:/" in text
+    assert "versionCode='$VERSION_CODE'" in text
+    assert "versionName='$VERSION_NAME'" in text
+    assert "name: ${{ env.ARTIFACT_NAME }}" in text
+    assert "kouroshyar_v3_6_57" not in text

@@ -17,6 +17,22 @@ def _text(item: dict[str, Any], key: str, max_len: int = 1000) -> str:
     return value
 
 
+def _string_list(item: dict[str, Any], key: str, max_items: int = 100) -> list[str]:
+    value = item.get(key, [])
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > max_items:
+        raise ValueError(f"فیلد {key} باید فهرست معتبر باشد.")
+    result: list[str] = []
+    for raw in value:
+        text = str(raw).strip()
+        if not text or len(text) > 120:
+            raise ValueError(f"یکی از مقادیر {key} نامعتبر است.")
+        if text not in result:
+            result.append(text)
+    return result
+
+
 def validate_holiday_item(item: dict[str, Any]) -> None:
     _text(item, "id", 120)
     parse_jalali(_text(item, "date", 10))
@@ -24,10 +40,14 @@ def validate_holiday_item(item: dict[str, Any]) -> None:
     if _text(item, "type", 40) not in {"official", "national_emergency", "provincial", "administrative", "judiciary"}:
         raise ValueError("نوع تعطیلی نامعتبر است.")
     scope = _text(item, "scope", 40)
-    if scope not in {"national", "province", "organization"}:
+    if scope not in {"national", "province", "county", "organization"}:
         raise ValueError("دامنه تعطیلی نامعتبر است.")
-    if scope == "province" and not str(item.get("province", "")).strip():
+    if scope in {"province", "county"} and not str(item.get("province", "")).strip():
         raise ValueError("استان تعطیلی خالی است.")
+    counties = _string_list(item, "counties")
+    _string_list(item, "excludedCounties")
+    if scope == "county" and not counties:
+        raise ValueError("برای تعطیلی شهرستانی باید نام شهرستان درج شود.")
     _text(item, "authority")
     if item.get("sourceUrl") and not _HTTPS.match(str(item["sourceUrl"])):
         raise ValueError("نشانی منبع تعطیلی HTTPS نیست.")
@@ -48,10 +68,14 @@ def validate_schedule_item(item: dict[str, Any]) -> None:
     if _text(item, "scheduleType", 40) not in {"changed_hours", "remote_work", "delayed_start", "early_close"}:
         raise ValueError("نوع تغییر ساعت نامعتبر است.")
     scope = _text(item, "scope", 40)
-    if scope not in {"national", "province", "organization"}:
+    if scope not in {"national", "province", "county", "organization"}:
         raise ValueError("دامنه تغییر ساعت نامعتبر است.")
-    if scope == "province" and not str(item.get("province", "")).strip():
+    if scope in {"province", "county"} and not str(item.get("province", "")).strip():
         raise ValueError("استان تغییر ساعت خالی است.")
+    counties = _string_list(item, "counties")
+    _string_list(item, "excludedCounties")
+    if scope == "county" and not counties:
+        raise ValueError("برای تغییر ساعت شهرستانی باید نام شهرستان درج شود.")
     _text(item, "authority")
     if item.get("sourceUrl") and not _HTTPS.match(str(item["sourceUrl"])):
         raise ValueError("نشانی منبع تغییر ساعت HTTPS نیست.")
@@ -99,6 +123,14 @@ def validate_payloads(holiday_payload: dict[str, Any], work_payload: dict[str, A
             raise ValueError("رکورد بازه‌ای ساعت کاری رسمی معتبر نیست.")
         if not any(i.get("id") == "work-ilam-1405-04-24-early-close-11" for i in schedules):
             raise ValueError("اطلاعیه تاییدشده ایلام در خوراک ساعات کاری وجود ندارد.")
+        county_holidays = [
+            i for i in holidays
+            if i.get("id") == "holiday-ilam-dehloran-1405-04-24"
+            and i.get("scope") == "county"
+            and i.get("counties") == ["دهلران"]
+        ]
+        if len(county_holidays) != 1:
+            raise ValueError("نمونه تعطیلی شهرستانی دهلران در خوراک وجود ندارد.")
         required_extra = {"holiday-national-1405-04-14-mourning", "holiday-national-1405-04-15-funeral"}
         if not required_extra.issubset(holiday_ids):
             raise ValueError("تعطیلی‌های رسمی موردی ۱۴ و ۱۵ تیر ۱۴۰۵ ناقص است.")

@@ -1,4 +1,4 @@
-﻿package com.example.kouroshyar
+package com.example.kouroshyar
 
 import android.content.Intent
 import android.net.Uri
@@ -140,4 +140,3 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 }
-

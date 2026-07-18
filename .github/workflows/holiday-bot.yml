@@ -22,12 +22,12 @@ on:
     branches:
       - main
     paths:
-      - "pubspec.yaml"
       - "holiday_bot/**"
       - "config/sources.yaml"
       - "data/official_holidays_1405.json"
       - "data/official_work_schedules_1405.json"
       - "data/verified_notices_1405.json"
+      - "data/manual_overrides.json"
       - "data/revision_floor.json"
       - "HOLIDAY_BOT_VERSION"
       - ".github/workflows/holiday-bot.yml"
@@ -76,7 +76,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.2.5"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.3.0"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -196,7 +196,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.2.5]"
+          git commit -m "chore: update signed holiday feeds [bot v1.3.0]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then

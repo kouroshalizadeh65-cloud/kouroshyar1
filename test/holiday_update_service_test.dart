@@ -53,6 +53,47 @@ void main() {
       expect(snapshot.holidays.single.typeLabel, 'تعطیلی استانی');
     });
 
+    test('keeps a county holiday local while exposing it for the selected province', () {
+      final notice = OfficialHolidayUpdate.fromJson(<String, dynamic>{
+        'id': 'holiday-ilam-dehloran-1405-04-24',
+        'date': '1405-04-24',
+        'title': 'تعطیلی ادارات شهرستان دهلران',
+        'type': 'administrative',
+        'scope': 'county',
+        'province': 'ایلام',
+        'counties': <String>['دهلران'],
+        'authority': 'استانداری ایلام',
+        'sourceUrl': 'https://example.com/notice',
+        'publishedAt': DateTime.now().toUtc().toIso8601String(),
+        'status': 'active',
+      });
+
+      expect(notice.appliesToProvince('ایلام'), isTrue);
+      expect(notice.appliesToProvince('خوزستان'), isFalse);
+      expect(notice.isCountyScoped, isTrue);
+      expect(notice.isFullDayHolidayForProvince('ایلام'), isFalse);
+      expect(notice.locationLabel, 'شهرستان‌های دهلران');
+    });
+
+    test('treats only a province-wide notice as a full-day province holiday', () {
+      final notice = OfficialHolidayUpdate.fromJson(<String, dynamic>{
+        'id': 'holiday-ilam-province-1',
+        'date': '1405-04-25',
+        'title': 'تعطیلی سراسر استان ایلام',
+        'type': 'provincial',
+        'scope': 'province',
+        'province': 'ایلام',
+        'authority': 'استانداری ایلام',
+        'sourceUrl': 'https://example.com/notice',
+        'publishedAt': DateTime.now().toUtc().toIso8601String(),
+        'status': 'active',
+      });
+
+      expect(notice.isProvinceWide, isTrue);
+      expect(notice.isFullDayHolidayForProvince('ایلام'), isTrue);
+      expect(notice.locationLabel, 'استان ایلام');
+    });
+
     test('does not treat organization-only notices as a province-wide holiday', () {
       final notice = OfficialHolidayUpdate.fromJson(<String, dynamic>{
         'id': 'court-unit-1',
@@ -204,6 +245,53 @@ void workingHoursFeedTests() {
       expect(
         schedule.administrativeSummary(fallbackStartTime: '07:00'),
         'کاهش ساعت اداری از ساعت 07:00 تا 11:00',
+      );
+    });
+
+    test('shows county names in a county-specific work-hours summary', () {
+      final schedule = WorkScheduleUpdate.fromJson(<String, dynamic>{
+        'id': 'work-ilam-hot-counties',
+        'date': '1405-04-23',
+        'title': 'کاهش ساعت کاری شهرستان‌های گرمسیر',
+        'scheduleType': 'early_close',
+        'scope': 'county',
+        'province': 'ایلام',
+        'counties': <String>['دهلران', 'مهران'],
+        'authority': 'استانداری ایلام',
+        'sourceUrl': 'https://example.com/notice',
+        'publishedAt': DateTime.now().toUtc().toIso8601String(),
+        'status': 'active',
+        'endTime': '11:00',
+      });
+
+      expect(schedule.appliesToProvince('ایلام'), isTrue);
+      expect(schedule.locationLabel, 'شهرستان‌های دهلران، مهران');
+      expect(
+        schedule.administrativeSummary(fallbackStartTime: '07:00'),
+        'شهرستان‌های دهلران، مهران: کاهش ساعت اداری از ساعت 07:00 تا 11:00',
+      );
+    });
+
+    test('shows exclusions for the remaining counties of a province', () {
+      final schedule = WorkScheduleUpdate.fromJson(<String, dynamic>{
+        'id': 'work-ilam-other-counties',
+        'date': '1405-04-23',
+        'title': 'کاهش ساعت کاری دیگر شهرستان‌های ایلام',
+        'scheduleType': 'early_close',
+        'scope': 'province',
+        'province': 'ایلام',
+        'excludedCounties': <String>['دهلران', 'مهران'],
+        'authority': 'استانداری ایلام',
+        'sourceUrl': 'https://example.com/notice',
+        'publishedAt': DateTime.now().toUtc().toIso8601String(),
+        'status': 'active',
+        'endTime': '12:00',
+      });
+
+      expect(schedule.locationLabel, 'استان ایلام به‌جز شهرستان‌های دهلران، مهران');
+      expect(
+        schedule.administrativeSummary(fallbackStartTime: '07:00'),
+        'استان ایلام به‌جز شهرستان‌های دهلران، مهران: کاهش ساعت اداری از ساعت 07:00 تا 12:00',
       );
     });
 

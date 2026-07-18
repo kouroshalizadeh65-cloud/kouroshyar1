@@ -33,6 +33,8 @@ class HolidayEvent:
     publishedAt: str
     status: str = "active"
     province: str | None = None
+    counties: list[str] = field(default_factory=list)
+    excludedCounties: list[str] = field(default_factory=list)
     includedOrganizations: list[str] = field(default_factory=list)
     excludedOrganizations: list[str] = field(default_factory=list)
     note: str | None = None
@@ -53,6 +55,8 @@ class WorkScheduleEvent:
     publishedAt: str
     status: str = "active"
     province: str | None = None
+    counties: list[str] = field(default_factory=list)
+    excludedCounties: list[str] = field(default_factory=list)
     endDate: str | None = None
     startTime: str | None = None
     endTime: str | None = None
