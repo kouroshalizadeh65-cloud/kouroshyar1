@@ -1,0 +1,7 @@
+{
+  "schema": "kouroshyar-manual-overrides-v1",
+  "upsert_holidays": [],
+  "upsert_work_schedules": [],
+  "cancel_holiday_ids": [],
+  "cancel_work_schedule_ids": []
+}

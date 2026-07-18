@@ -1,0 +1,171 @@
+name: KouroshYar Holiday Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "نوع اجرا"
+        required: true
+        default: current
+        type: choice
+        options:
+          - current
+          - backfill_1405
+      dry_run:
+        description: "فقط بررسی؛ بدون انتشار"
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kouroshyar-holiday-feed-main
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Preflight required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            requirements.txt
+            HOLIDAY_BOT_VERSION
+            config/sources.yaml
+            holiday_bot/engine.py
+            holiday_bot/classify.py
+            holiday_bot/validate.py
+            data/official_holidays_1405.json
+            data/official_work_schedules_1405.json
+            data/verified_notices_1405.json
+          )
+          for file in "${required[@]}"; do
+            test -f "$file" || { echo "Missing required file: $file"; exit 1; }
+          done
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.1.1"
+          if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
+            echo "Sensitive signing file exists in repository."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Doctor and tests
+        run: |
+          set -euo pipefail
+          python -m holiday_bot doctor
+          python -m pytest
+
+      - name: Restore and validate private signing key
+        shell: bash
+        env:
+          HOLIDAY_FEED_PRIVATE_KEY_B64: ${{ secrets.HOLIDAY_FEED_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${HOLIDAY_FEED_PRIVATE_KEY_B64:-}" || { echo "Secret HOLIDAY_FEED_PRIVATE_KEY_B64 is missing."; exit 1; }
+          python - <<'PY'
+          import base64, os
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from holiday_bot.storage import assert_expected_key
+
+          raw = base64.b64decode(os.environ["HOLIDAY_FEED_PRIVATE_KEY_B64"].strip(), validate=True)
+          if raw.startswith(b"-----BEGIN"):
+              key = serialization.load_pem_private_key(raw, password=None)
+              pem = raw
+          elif len(raw) == 32:
+              key = Ed25519PrivateKey.from_private_bytes(raw)
+              pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+          else:
+              raise SystemExit("Secret must decode to an Ed25519 PEM or 32 raw bytes.")
+          if not isinstance(key, Ed25519PrivateKey):
+              raise SystemExit("Secret is not an Ed25519 private key.")
+          assert_expected_key(key)
+          path = Path(os.environ["RUNNER_TEMP"]) / "holiday_feed_private.pem"
+          path.write_bytes(pem)
+          print(f"Validated signing key; temporary path: {path}")
+          PY
+          chmod 600 "$RUNNER_TEMP/holiday_feed_private.pem"
+
+      - name: Generate, sign and validate feeds
+        shell: bash
+        env:
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          MODE="${INPUT_MODE:-current}"
+          DRY="${INPUT_DRY_RUN:-false}"
+          mkdir -p reports
+          args=(python -m holiday_bot update --mode "$MODE" --private-key "$RUNNER_TEMP/holiday_feed_private.pem")
+          if [ "$DRY" = "true" ]; then args+=(--dry-run); fi
+          "${args[@]}" | tee reports/workflow_result.json
+          if [ "$DRY" != "true" ]; then
+            python -m holiday_bot validate \
+              --holidays holiday_feed/holidays.json \
+              --working-hours holiday_feed/working_hours.json
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("reports/workflow_result.json").read_text(encoding="utf-8"))
+          validation = report["validation"]
+          assert validation["officialHolidayDates"] == 26, validation
+          assert validation["periodicSchedules"] == 1, validation
+          assert validation["incidentSchedules"] >= 1, validation
+          assert validation["holidays"] >= 28, validation
+          print(json.dumps({"ok": True, "validation": validation, "sourcesFailed": report["sourcesFailed"]}, ensure_ascii=False, indent=2))
+          PY
+          fi
+
+      - name: Upload run report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: holiday-bot-report-${{ github.run_number }}
+          path: reports/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Commit only generated feed and state files
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "KouroshYar Holiday Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f -- \
+            holiday_feed/holidays.json \
+            holiday_feed/working_hours.json \
+            data/holidays.payload.json \
+            data/working_hours.payload.json \
+            data/seen.json \
+            data/pending.json
+          if git diff --cached --quiet; then
+            echo "No feed or state changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: update signed holiday feeds [bot v1.1.1]"
+          git pull --rebase origin main
+          git push origin HEAD:main

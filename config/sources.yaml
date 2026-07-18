@@ -1,0 +1,313 @@
+expected_public_key_b64: sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18=
+user_agent: KouroshYar-Holiday-Bot/1.1.1 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
+timeout_seconds: 25
+max_response_bytes: 2500000
+current_lookback_hours: 240
+allowed_domains:
+- irna.ir
+- dolat.ir
+sources:
+- name: پایگاه اطلاع‌رسانی دولت - بخشنامه‌ها
+  kind: html_index
+  url: https://dolat.ir/cat/441
+  link_regex: https://dolat\.ir/detail/\d+
+  candidate_terms: &id001
+  - تعطیل
+  - ساعت کاری
+  - ساعات کاری
+  - پایان کار
+  - آغاز به کار
+  - شروع به کار
+  - دورکار
+  - کاهش ساعت
+  - تعجیل
+  - با تاخیر
+  - با تأخیر
+  max_items: 120
+  modes:
+  - current
+  - backfill_1405
+- name: ایرنا - برچسب تغییر ساعت کاری ادارات
+  kind: irna_tag
+  url: https://www.irna.ir/tag/تغییر+ساعت+کاری+ادارات
+  max_items: 120
+  modes:
+  - current
+  - backfill_1405
+- name: ایرنا - برچسب تعطیلی ادارات
+  kind: irna_tag
+  url: https://www.irna.ir/tag/تعطیلی+ادارات
+  max_items: 120
+  modes:
+  - current
+  - backfill_1405
+- name: ایرنا - سراسری
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1001
+  candidate_terms: *id001
+  max_items: 120
+  modes:
+  - current
+- name: ایرنا - تهران
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1002
+  province: تهران
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - اصفهان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1003
+  province: اصفهان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - آذربایجان شرقی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1004
+  province: آذربایجان شرقی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - آذربایجان غربی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1006
+  province: آذربایجان غربی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - اردبیل
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1012
+  province: اردبیل
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - ایلام
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1013
+  province: ایلام
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - بوشهر
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1014
+  province: بوشهر
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - چهارمحال و بختیاری
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1015
+  province: چهارمحال و بختیاری
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - خراسان جنوبی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1016
+  province: خراسان جنوبی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - خراسان شمالی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1017
+  province: خراسان شمالی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - خراسان رضوی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1018
+  province: خراسان رضوی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - خوزستان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1019
+  province: خوزستان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - زنجان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1020
+  province: زنجان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - سمنان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1021
+  province: سمنان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - سیستان و بلوچستان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1022
+  province: سیستان و بلوچستان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - فارس
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1023
+  province: فارس
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - قزوین
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1024
+  province: قزوین
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - قم
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1025
+  province: قم
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - کردستان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1026
+  province: کردستان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - کرمان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1027
+  province: کرمان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - کرمانشاه
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1028
+  province: کرمانشاه
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - کهگیلویه و بویراحمد
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1029
+  province: کهگیلویه و بویراحمد
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - گلستان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1030
+  province: گلستان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - گیلان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1031
+  province: گیلان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - لرستان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1032
+  province: لرستان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - مازندران
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1033
+  province: مازندران
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - هرمزگان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1035
+  province: هرمزگان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - همدان
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1036
+  province: همدان
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - یزد
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1037
+  province: یزد
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - مرکزی
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1038
+  province: مرکزی
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - البرز
+  kind: rss
+  url: https://www.irna.ir/rss/tp/1041
+  province: البرز
+  candidate_terms: *id001
+  max_items: 100
+  modes:
+  - current
+- name: ایرنا - آرشیو ۱۴۰۵
+  kind: irna_archive
+  keywords:
+  - تعطیلی ادارات
+  - ادارات تعطیل
+  - واحدهای قضایی تعطیل
+  - ساعت کاری ادارات
+  - کاهش ساعات کاری
+  - پایان کار ادارات
+  - زودتر تعطیل
+  - دورکاری ادارات
+  - آغاز به کار ادارات با تاخیر
+  max_pages: 20
+  modes:
+  - backfill_1405
