@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_info/app_version_service.dart';
 import '../../core/security/screen_capture_service.dart';
 import '../../core/theme/app_theme_controller.dart';
 import '../../core/utils/persian_numbers.dart';
@@ -95,12 +96,21 @@ class SettingsScreen extends ConsumerWidget {
                 _item(Icons.health_and_safety, 'وضعیت سلامت برنامه', 'شمارش داده‌ها و عیب‌یابی سریع', const AppHealthScreen()),
                 _item(Icons.info_outline, 'درباره کوروش‌یار', 'نسخه و وضعیت برنامه', const AppInfoScreen()),
               ]),
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.phone_android),
-                  title: Text('نسخه برنامه'),
-                  subtitle: Text('کوروش‌یار v3.6.53'),
-                ),
+              FutureBuilder<AppVersionInfo>(
+                future: AppVersionService.getInfo(),
+                builder: (context, snapshot) {
+                  final version = snapshot.data;
+                  final subtitle = snapshot.connectionState == ConnectionState.waiting
+                      ? 'در حال خواندن نسخه نصب‌شده…'
+                      : (version ?? const AppVersionInfo.unavailable()).settingsDisplay;
+                  return Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.phone_android),
+                      title: const Text('نسخه برنامه'),
+                      subtitle: Text(subtitle),
+                    ),
+                  );
+                },
               ),
             ],
           );

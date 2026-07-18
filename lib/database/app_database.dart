@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 
+import '../core/app_info/app_version_service.dart';
 import '../core/security/backup_crypto.dart';
 import '../features/notifications/notification_service.dart';
 
@@ -637,10 +638,11 @@ class AppDatabase {
       });
     }
     final now = DateTime.now();
+    final appVersion = await AppVersionService.getInfo();
     final manifest = <String, dynamic>{
       'format': kouroshyarBackupFormat,
       'createdAt': now.toIso8601String(),
-      'appVersion': '3.6.53+125',
+      'appVersion': appVersion.compactDisplay,
       'databaseSha256': sha256.convert(dbBytes).toString(),
       'files': manifestFiles,
     };
