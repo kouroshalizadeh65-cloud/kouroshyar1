@@ -1,6 +1,88 @@
 {
   "format": "kouroshyar-work-schedule-feed-v1",
-  "revision": 0,
-  "generatedAt": "2026-07-18T00:00:00Z",
-  "schedules": []
+  "revision": 1,
+  "generatedAt": "2026-07-18T04:49:32.563568+00:00",
+  "schedules": [
+    {
+      "id": "national-work-hours-1405-summer",
+      "date": "1405-02-26",
+      "endDate": "1405-06-15",
+      "title": "ساعت کاری ادارات از ۷ تا ۱۳",
+      "scheduleType": "changed_hours",
+      "scope": "national",
+      "authority": "سازمان اداری و استخدامی کشور",
+      "sourceUrl": "https://dolat.ir/detail/481465",
+      "publishedAt": "2026-05-15T13:40:00Z",
+      "status": "active",
+      "startTime": "07:00",
+      "endTime": "13:00",
+      "includedOrganizations": [
+        "ادارات و دستگاه‌های اجرایی مشمول بخشنامه"
+      ],
+      "note": "برنامه ساعت کاری دوره‌ای است و باید به‌صورت یک متن اطلاع‌رسانی در تقویم نمایش داده شود؛ تعطیلی یا کاهش ساعت موردی محسوب نمی‌شود."
+    },
+    {
+      "id": "work-ilam-1405-04-24-early-close-11",
+      "date": "1405-04-24",
+      "title": "پایان ساعت کاری ادارات استان ایلام به‌جز دهلران در ساعت ۱۱",
+      "scheduleType": "early_close",
+      "scope": "province",
+      "province": "ایلام",
+      "authority": "روابط عمومی و امور بین‌الملل استانداری ایلام",
+      "sourceUrl": "https://www.irna.ir/news/86209477/",
+      "publishedAt": "2026-07-14T17:58:00Z",
+      "status": "active",
+      "endTime": "11:00",
+      "includedOrganizations": [
+        "ادارات، دستگاه‌های اجرایی، بانک‌ها و شرکت‌های بیمه در دیگر شهرستان‌های استان ایلام"
+      ],
+      "excludedOrganizations": [
+        "شهرستان دهلران",
+        "دستگاه‌های خدمات‌رسان",
+        "مراکز درمانی",
+        "نیروهای نظامی و انتظامی",
+        "واحدهای عملیاتی",
+        "نیروهای شیفت‌گردان"
+      ],
+      "note": "در همان اطلاعیه، ادارات شهرستان دهلران تعطیل اعلام شده‌اند؛ چون نسخه فعلی کوروش‌یار دامنه شهرستانی ندارد، تعطیلی دهلران به‌عنوان تعطیلی کل استان منتشر نشده است."
+    },
+    {
+      "id": "work-ایلام-1405-04-24-370befefb13e",
+      "date": "1405-04-24",
+      "title": "موج گرما دهلران را تعطیل کرد؛ ادارات ایلام دو ساعت زودتر بسته می شوند",
+      "scheduleType": "early_close",
+      "scope": "province",
+      "authority": "استانداری ایلام",
+      "sourceUrl": "https://www.irna.ir/news/86209477/%D9%85%D9%88%D8%AC-%DA%AF%D8%B1%D9%85%D8%A7-%D8%AF%D9%87%D9%84%D8%B1%D8%A7%D9%86-%D8%B1%D8%A7-%D8%AA%D8%B9%D8%B7%DB%8C%D9%84-%DA%A9%D8%B1%D8%AF-%D8%A7%D8%AF%D8%A7%D8%B1%D8%A7%D8%AA-%D8%A7%DB%8C%D9%84%D8%A7%D9%85-%D8%AF%D9%88-%D8%B3%D8%A7%D8%B9%D8%AA-%D8%B2%D9%88%D8%AF%D8%AA%D8%B1-%D8%A8%D8%B3%D8%AA%D9%87",
+      "publishedAt": "2026-07-14T17:58:42+00:00",
+      "status": "active",
+      "province": "ایلام",
+      "includedOrganizations": [
+        "ادارات"
+      ],
+      "excludedOrganizations": [
+        "شهرستان دهلران"
+      ],
+      "note": "استخراج خودکار از اطلاعیه رسمی؛ متن منبع در جزئیات قابل مراجعه است."
+    },
+    {
+      "id": "work-کرمانشاه-1405-04-27-b2330671204f",
+      "date": "1405-04-27",
+      "title": "ساعت کاری ادارات کرمانشاه از 27 تیر به 7 تا 12 تغییر کرد",
+      "scheduleType": "changed_hours",
+      "scope": "province",
+      "authority": "ایرنا - کرمانشاه",
+      "sourceUrl": "https://www.irna.ir/news/86210905/%D8%B3%D8%A7%D8%B9%D8%AA-%DA%A9%D8%A7%D8%B1%DB%8C-%D8%A7%D8%AF%D8%A7%D8%B1%D8%A7%D8%AA-%DA%A9%D8%B1%D9%85%D8%A7%D9%86%D8%B4%D8%A7%D9%87-%D8%A7%D8%B2-%DB%B2%DB%B7-%D8%AA%DB%8C%D8%B1-%D8%A8%D9%87-%DB%B7-%D8%AA%D8%A7-%DB%B1%DB%B2-%D8%AA%D8%BA%DB%8C%DB%8C%D8%B1-%DA%A9%D8%B1%D8%AF",
+      "publishedAt": "2026-07-16T10:48:32+00:00",
+      "status": "active",
+      "province": "کرمانشاه",
+      "startTime": "07:00",
+      "endTime": "12:00",
+      "includedOrganizations": [
+        "ادارات",
+        "دستگاه‌های اجرایی"
+      ],
+      "note": "استخراج خودکار از اطلاعیه رسمی؛ متن منبع در جزئیات قابل مراجعه است."
+    }
+  ]
 }
