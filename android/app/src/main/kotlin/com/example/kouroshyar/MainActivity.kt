@@ -1,4 +1,4 @@
-package com.example.kouroshyar
+﻿package com.example.kouroshyar
 
 import android.content.Intent
 import android.net.Uri
@@ -63,7 +63,7 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     result.success(
                         mapOf(
-                            "versionName" to (packageInfo.versionName ?: BuildConfig.VERSION_NAME),
+                            "versionName" to (packageInfo.versionName.orEmpty()),
                             "versionCode" to versionCode,
                             "packageName" to packageName
                         )
@@ -140,3 +140,4 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 }
+
