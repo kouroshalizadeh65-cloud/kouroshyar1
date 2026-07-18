@@ -1,7 +1,7 @@
 {
   "format": "kouroshyar-work-schedule-feed-v1",
-  "revision": 2,
-  "generatedAt": "2026-07-18T10:46:31.865214+00:00",
+  "revision": 4,
+  "generatedAt": "2026-07-18T11:47:10.868571+00:00",
   "schedules": [
     {
       "id": "national-work-hours-1405-summer",
