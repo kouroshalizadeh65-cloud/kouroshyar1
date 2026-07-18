@@ -1,0 +1,5 @@
+{
+  "format": "kouroshyar-holiday-feed-v1",
+  "payload": "BASE64_OF_EXACT_PAYLOAD_BYTES",
+  "signature": "BASE64_OF_ED25519_SIGNATURE"
+}

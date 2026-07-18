@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+set -eu
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+GRADLE_VERSION=8.13
+CACHE_ROOT="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/kouroshyar-gradle-$GRADLE_VERSION"
+GRADLE_HOME="$CACHE_ROOT/gradle-$GRADLE_VERSION"
+ZIP_FILE="$CACHE_ROOT/gradle-$GRADLE_VERSION-bin.zip"
+URL="https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
+CHECKSUM_URL="$URL.sha256"
+if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+  mkdir -p "$CACHE_ROOT"
+  if [ ! -f "$ZIP_FILE" ]; then
+    if command -v curl >/dev/null 2>&1; then
+      curl --fail --location --retry 3 --output "$ZIP_FILE" "$URL"
+      curl --fail --location --retry 3 --output "$ZIP_FILE.sha256" "$CHECKSUM_URL"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -O "$ZIP_FILE" "$URL"
+      wget -O "$ZIP_FILE.sha256" "$CHECKSUM_URL"
+    else
+      echo "curl or wget is required to download Gradle" >&2
+      exit 1
+    fi
+  fi
+  EXPECTED=$(tr -d '[:space:]' < "$ZIP_FILE.sha256")
+  ACTUAL=$(sha256sum "$ZIP_FILE" | awk '{print $1}')
+  [ "$EXPECTED" = "$ACTUAL" ] || { echo "Gradle distribution checksum mismatch" >&2; rm -f "$ZIP_FILE"; exit 1; }
+  rm -rf "$GRADLE_HOME"
+  unzip -q "$ZIP_FILE" -d "$CACHE_ROOT"
+fi
+exec "$GRADLE_HOME/bin/gradle" -p "$APP_HOME" "$@"

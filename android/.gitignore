@@ -1,0 +1,9 @@
+gradle-wrapper.jar
+/.gradle
+/captures/
+/local.properties
+/key.properties
+/app/kouroshyar_upload.jks
+/app/debug
+/app/profile
+/app/release

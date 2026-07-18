@@ -1,0 +1,5 @@
+
+# Holiday-feed signing private keys must never enter source control.
+holiday_feed/*private*
+holiday_feed/*.pem
+holiday_feed/*.key

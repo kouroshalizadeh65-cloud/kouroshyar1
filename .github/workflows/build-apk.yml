@@ -1,0 +1,124 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install Android SDK 36
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Configure permanent release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.KOUROSHYAR_KEYSTORE_BASE64 }}" ] || \
+             [ -z "${{ secrets.KOUROSHYAR_KEYSTORE_PASSWORD }}" ] || \
+             [ -z "${{ secrets.KOUROSHYAR_KEY_PASSWORD }}" ] || \
+             [ -z "${{ secrets.KOUROSHYAR_KEY_ALIAS }}" ]; then
+            echo "::error::Permanent release signing secrets are incomplete. Build stopped to avoid a differently signed APK."
+            exit 1
+          fi
+          printf '%s' "${{ secrets.KOUROSHYAR_KEYSTORE_BASE64 }}" | base64 --decode > android/app/kouroshyar_upload.jks
+          cat > android/key.properties <<KEYS
+          storePassword=${{ secrets.KOUROSHYAR_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KOUROSHYAR_KEY_PASSWORD }}
+          keyAlias=${{ secrets.KOUROSHYAR_KEY_ALIAS }}
+          storeFile=kouroshyar_upload.jks
+          KEYS
+          chmod 600 android/key.properties android/app/kouroshyar_upload.jks
+
+      - name: Prepare Android wrapper
+        run: chmod +x android/gradlew
+
+      - name: Get packages
+        run: |
+          flutter pub get
+          test -f pubspec.lock || {
+            echo "::error::flutter pub get did not generate pubspec.lock."
+            exit 1
+          }
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze source
+        run: flutter analyze
+
+      - name: Build release APK
+        env:
+          KOUROSHYAR_HOLIDAY_FEED_URL: ${{ vars.KOUROSHYAR_HOLIDAY_FEED_URL }}
+          KOUROSHYAR_HOLIDAY_PUBLIC_KEY: ${{ vars.KOUROSHYAR_HOLIDAY_PUBLIC_KEY }}
+          KOUROSHYAR_WORKING_HOURS_FEED_URL: ${{ vars.KOUROSHYAR_WORKING_HOURS_FEED_URL }}
+        run: |
+          flutter build apk --release \
+            --dart-define=KOUROSHYAR_HOLIDAY_FEED_URL="$KOUROSHYAR_HOLIDAY_FEED_URL" \
+            --dart-define=KOUROSHYAR_HOLIDAY_PUBLIC_KEY="$KOUROSHYAR_HOLIDAY_PUBLIC_KEY" \
+            --dart-define=KOUROSHYAR_WORKING_HOURS_FEED_URL="$KOUROSHYAR_WORKING_HOURS_FEED_URL"
+
+      - name: Verify APK signature and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee build/apksigner-report.txt
+          PACKAGE_INFO=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | head -n 1)
+          echo "$PACKAGE_INFO" | tee build/package-report.txt
+          echo "$PACKAGE_INFO" | grep -q "name='com.example.kouroshyar'" || {
+            echo "::error::Unexpected applicationId. Update installation compatibility is not guaranteed."
+            exit 1
+          }
+          if [ -n "${{ vars.KOUROSHYAR_CERT_SHA256 }}" ]; then
+            ACTUAL=$(grep -i "Signer #1 certificate SHA-256 digest:" build/apksigner-report.txt | head -n1 | cut -d: -f2- | tr -d ' :\r\n' | tr '[:lower:]' '[:upper:]')
+            EXPECTED=$(printf '%s' "${{ vars.KOUROSHYAR_CERT_SHA256 }}" | tr -d ' :\r\n' | tr '[:lower:]' '[:upper:]')
+            [ "$ACTUAL" = "$EXPECTED" ] || {
+              echo "::error::APK certificate fingerprint does not match KOUROSHYAR_CERT_SHA256."
+              exit 1
+            }
+          fi
+
+      - name: Rename APK with version
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/flutter-apk/kouroshyar_v3_6_55_periodic_hours_holidays_1405_04_28.apk
+
+      - name: Upload APK and verification reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: kouroshyar-v3-6-55-periodic-hours-holidays-1405-04-28-apk
+          path: |
+            build/app/outputs/flutter-apk/kouroshyar_v3_6_55_periodic_hours_holidays_1405_04_28.apk
+            build/apksigner-report.txt
+            build/package-report.txt
+            pubspec.lock
+
+      - name: Cleanup temporary signing files
+        if: always()
+        run: rm -f android/key.properties android/app/kouroshyar_upload.jks
