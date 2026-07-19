@@ -100,3 +100,48 @@ def test_relative_early_close_groups_use_official_summer_baseline():
     assert by_end["11:00"].startTime == "07:00"
     assert by_end["12:00"].startTime == "07:00"
     assert "محاسبه" in (by_end["11:00"].note or "")
+
+
+def test_official_cancellation_is_extracted_as_directive_not_new_event():
+    item = article(
+        "لغو تعطیلی ادارات دهلران",
+        "روابط عمومی استانداری ایلام اعلام کرد تعطیلی ادارات شهرستان دهلران در روز دوشنبه 30 تیر 1405 لغو شد.",
+        "https://www.portal-il.ir/archives/arshive1/cancel-dehloran",
+        "ایلام",
+    )
+    result = classify_article(item, 1405)
+    assert not result.holidays and not result.work_schedules
+    assert len(result.cancellations) == 1
+    directive = result.cancellations[0]
+    assert directive.target == "holiday"
+    assert directive.scope == "county"
+    assert directive.counties == ["دهلران"]
+    assert directive.date == "1405-04-30"
+
+
+def test_official_correction_is_published_with_updated_status():
+    item = article(
+        "اصلاحیه ساعت کاری ادارات خوزستان",
+        "روابط عمومی استانداری خوزستان در اطلاعیه اصلاحی اعلام کرد روز دوشنبه 30 تیر 1405 پایان کار ادارات استان ساعت 12 خواهد بود.",
+        "https://www.irna.ir/news/987654",
+        "خوزستان",
+    )
+    result = classify_article(item, 1405)
+    assert len(result.work_schedules) == 1
+    event = result.work_schedules[0]
+    assert event.status == "updated"
+    assert event.endTime == "12:00"
+    assert event.scope == "province"
+
+
+def test_rumor_about_cancellation_never_cancels():
+    item = article(
+        "تکذیب لغو تعطیلی ادارات",
+        "روابط عمومی استانداری ایلام اعلام کرد خبر لغو تعطیلی ادارات شهرستان دهلران شایعه و نادرست است.",
+        "https://www.irna.ir/news/123456",
+        "ایلام",
+    )
+    result = classify_article(item, 1405)
+    assert not result.cancellations
+    assert not result.holidays and not result.work_schedules
+    assert result.pending

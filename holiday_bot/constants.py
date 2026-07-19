@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-BOT_VERSION = "1.3.1"
-CLASSIFIER_VERSION = "1.3.1-relative-early-close"
+BOT_VERSION = "1.3.2"
+CLASSIFIER_VERSION = "1.3.2-corrections-cancellations-dedupe"
 HOLIDAY_FEED_FORMAT = "kouroshyar-holiday-feed-v1"
 WORK_SCHEDULE_FEED_FORMAT = "kouroshyar-work-schedule-feed-v1"
 EXPECTED_PUBLIC_KEY_B64 = "sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18="
@@ -51,7 +51,20 @@ OFFICIAL_AUTHORITY_TERMS = (
 
 NEGATION_TERMS = (
     "تکذیب", "تکذیب شد", "شایعه", "نادرست", "صحت ندارد", "تعطیل نیست",
-    "لغو تعطیلی", "احتمال تعطیلی", "پیشنهاد تعطیلی", "درخواست تعطیلی",
+    "احتمال تعطیلی", "پیشنهاد تعطیلی", "درخواست تعطیلی", "گمانه زنی",
+    "هنوز تصمیمی گرفته نشده", "در دست بررسی",
+)
+
+CANCELLATION_TERMS = (
+    "لغو شد", "لغو گردید", "منتفی شد", "لغو می شود", "لغو می‌شود",
+    "تعطیلی لغو", "لغو تعطیلی", "دورکاری لغو", "کاهش ساعت لغو",
+    "تغییر ساعت لغو", "تصمیم قبلی لغو", "اطلاعیه قبلی لغو",
+)
+
+CORRECTION_TERMS = (
+    "اصلاحیه", "اصلاح شد", "اصلاح می شود", "اصلاح می‌شود", "تصحیح",
+    "به روزرسانی اطلاعیه", "به‌روزرسانی اطلاعیه", "جایگزین اطلاعیه قبلی",
+    "اطلاعیه اصلاحی", "متن اصلاح شده", "متن اصلاح‌شده",
 )
 
 DEFINITIVE_HOLIDAY_TERMS = (

@@ -21,10 +21,13 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     assert "data/revision_floor.json" in text
     assert "report[\"holidayRevision\"] >= 4" in text
     assert "published-revision-floor.json" in text
+    assert 'cron: "17 * * * *"' in text
+    assert "reports/source_health.json" in text
+    assert "holiday_bot/reconcile.py" in text
     push_paths = text.split("paths:", 1)[1].split("permissions:", 1)[0]
     assert "pubspec.yaml" not in push_paths
     assert "data/manual_overrides.json" in push_paths
-    assert "[bot v1.3.1]" in text
+    assert "[bot v1.3.2]" in text
 
 
 def test_no_sensitive_key_files_in_payload():
@@ -65,3 +68,12 @@ def test_official_ilam_portal_is_allowlisted_and_configured():
     assert source["kind"] == "html_index"
     assert source["province"] == "ایلام"
     assert source["url"] == "https://www.portal-il.ir/archives/arshive1"
+
+
+def test_revision_floor_matches_confirmed_live_revisions():
+    import json
+    root = Path(__file__).resolve().parents[1]
+    floor = json.loads((root / "data" / "revision_floor.json").read_text(encoding="utf-8"))
+    assert floor["holidayRevisionFloor"] == 5
+    assert floor["workingHoursRevisionFloor"] == 6
+    assert floor["updatedBy"] == "bot-v1.3.1-confirmed-live"

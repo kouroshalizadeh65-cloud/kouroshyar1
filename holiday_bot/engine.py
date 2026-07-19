@@ -13,7 +13,8 @@ from .extract import (
     SafeHttpClient, article_fingerprint, fetch_html_index_articles, fetch_irna_archive_articles,
     fetch_irna_tag_articles, fetch_rss_articles,
 )
-from .models import Article, PendingCandidate
+from .models import Article, CancellationDirective, PendingCandidate
+from .reconcile import apply_cancellations, merge_semantic_events
 from .seeds import (
     load_official_holidays, load_official_work_schedules, load_verified_notices,
     official_work_schedule_managed_prefixes,
@@ -98,7 +99,7 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         stat: dict[str, Any] = {
             "source": source["name"], "kind": source["kind"], "status": "ok",
             "fetched": 0, "selected": 0, "skippedOld": 0, "skippedSeen": 0,
-            "holidaysPublished": 0, "schedulesPublished": 0, "pending": 0,
+            "holidaysPublished": 0, "schedulesPublished": 0, "cancellationsFound": 0, "pending": 0,
         }
         try:
             items = _fetch_source(client, source, allowed_domains, mode)
@@ -134,23 +135,26 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
 
     dynamic_holidays: list[dict[str, Any]] = []
     dynamic_schedules: list[dict[str, Any]] = []
+    dynamic_cancellations: list[CancellationDirective] = []
     dynamic_pending: list[PendingCandidate] = []
     for article in sorted(selected, key=lambda x: x.published_at):
         classified = classify_article(article, only_year=1405 if mode == "backfill_1405" else None)
         dynamic_holidays.extend(x.to_json() for x in classified.holidays)
         dynamic_schedules.extend(x.to_json() for x in classified.work_schedules)
+        dynamic_cancellations.extend(classified.cancellations)
         dynamic_pending.extend(classified.pending)
         stat = stats_by_source.get(article.source_name)
         if stat is not None:
             stat["holidaysPublished"] += len(classified.holidays)
             stat["schedulesPublished"] += len(classified.work_schedules)
+            stat["cancellationsFound"] += len(classified.cancellations)
             stat["pending"] += len(classified.pending)
         seen_articles[article_fingerprint(article)] = {
             "url": article.article_url, "title": article.title,
             "publishedAt": article.published_at.astimezone(timezone.utc).isoformat(),
             "processedAt": started.isoformat(), "classifierVersion": CLASSIFIER_VERSION,
             "holidays": len(classified.holidays), "schedules": len(classified.work_schedules),
-            "pending": len(classified.pending),
+            "cancellations": len(classified.cancellations), "pending": len(classified.pending),
         }
 
     feed_dir = root / "holiday_feed"
@@ -180,8 +184,27 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
             for prefix in managed_schedule_prefixes
         )
     ]
-    holidays = _merge_by_id(old_holidays, official_holidays + verified_holidays + dynamic_holidays)
-    schedules = _merge_by_id(old_schedules, official_schedules + verified_schedules + dynamic_schedules)
+    holidays, holiday_reconcile = merge_semantic_events(
+        old_holidays, official_holidays + verified_holidays + dynamic_holidays, "holiday"
+    )
+    schedules, schedule_reconcile = merge_semantic_events(
+        old_schedules, official_schedules + verified_schedules + dynamic_schedules, "work_schedule"
+    )
+    holidays, schedules, cancellation_stats, unmatched_cancellations = apply_cancellations(
+        holidays, schedules, dynamic_cancellations
+    )
+    for directive in unmatched_cancellations:
+        dynamic_pending.append(
+            PendingCandidate(
+                articleUrl=directive.sourceUrl,
+                source=directive.authority,
+                title=directive.title,
+                publishedAt=directive.publishedAt,
+                reason="لغو رسمی شناسایی شد، اما رکورد منطبق قبلی در خوراک پیدا نشد.",
+                provinceHint=directive.province,
+                excerpt=directive.reason,
+            )
+        )
     holidays, schedules = _apply_manual_overrides(holidays, schedules, read_json(root / "data/manual_overrides.json", {}))
 
     old_h_canonical, new_h_canonical = _canonical(old_holidays), _canonical(holidays)
@@ -223,6 +246,21 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     floor_payload = revision_floor_json(holiday_floor_after, work_floor_after, now, f"bot-v{BOT_VERSION}")
     pending = _merge_pending(read_json(root / "data/pending.json", []), verified_pending + dynamic_pending)
     errors = [stat for stat in source_stats if stat["status"] == "error"]
+    empty_sources = [stat for stat in source_stats if stat["status"] == "ok" and stat["fetched"] == 0]
+    source_health = {
+        "schema": "kouroshyar-source-health-v1",
+        "botVersion": BOT_VERSION,
+        "generatedAt": now,
+        "mode": mode,
+        "attempted": len(source_stats),
+        "succeeded": len(source_stats) - len(errors),
+        "failed": len(errors),
+        "empty": len(empty_sources),
+        "failures": errors,
+        "emptySources": [
+            {"source": item["source"], "kind": item["kind"]} for item in empty_sources
+        ],
+    }
     report = {
         "botVersion": BOT_VERSION, "classifierVersion": CLASSIFIER_VERSION, "mode": mode,
         "startedAt": now, "dryRun": dry_run,
@@ -230,7 +268,17 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "sourcesAttempted": len(source_stats), "sourcesSucceeded": len(source_stats) - len(errors), "sourcesFailed": len(errors),
         "sourceStats": source_stats, "articlesFetchedUnique": len(unique_articles), "articlesProcessed": len(selected),
         "dynamicHolidayCandidates": len(dynamic_holidays), "dynamicWorkScheduleCandidates": len(dynamic_schedules),
+        "dynamicCancellationCandidates": len(dynamic_cancellations),
         "dynamicPendingCandidates": len(dynamic_pending), "pendingTotal": len(pending),
+        "reconciliation": {
+            "holidayDuplicatesCollapsed": holiday_reconcile["duplicatesCollapsed"],
+            "holidayCorrectionsApplied": holiday_reconcile["correctionsApplied"],
+            "workingHoursDuplicatesCollapsed": schedule_reconcile["duplicatesCollapsed"],
+            "workingHoursCorrectionsApplied": schedule_reconcile["correctionsApplied"],
+            "cancellationsApplied": cancellation_stats["cancellationsApplied"],
+            "unmatchedCancellations": len(unmatched_cancellations),
+        },
+        "sourceHealth": source_health,
         "holidayChanged": holiday_changed, "workingHoursChanged": work_changed,
         "publishForced": force_publish,
         "holidayRevision": holiday_payload["revision"], "workingHoursRevision": work_payload["revision"],
@@ -263,6 +311,7 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "validation": validation,
     }
 
+    write_json(root / "reports/source_health.json", source_health)
     if not dry_run:
         write_json(holiday_payload_path, holiday_payload)
         write_json(work_payload_path, work_payload)

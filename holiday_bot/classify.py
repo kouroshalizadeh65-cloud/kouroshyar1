@@ -5,6 +5,8 @@ import re
 from datetime import timezone
 
 from .constants import (
+    CANCELLATION_TERMS,
+    CORRECTION_TERMS,
     DEFINITIVE_HOLIDAY_TERMS,
     NEGATION_TERMS,
     OFFICIAL_AUTHORITY_TERMS,
@@ -12,7 +14,14 @@ from .constants import (
     WORK_TERMS,
 )
 from .dates import extract_jalali_dates, extract_jalali_range, extract_times
-from .models import Article, ClassificationResult, HolidayEvent, PendingCandidate, WorkScheduleEvent
+from .models import (
+    Article,
+    CancellationDirective,
+    ClassificationResult,
+    HolidayEvent,
+    PendingCandidate,
+    WorkScheduleEvent,
+)
 from .text import excerpt, normalize_text
 
 
@@ -200,6 +209,30 @@ def _contains_work_signal(text: str) -> bool:
     return any(term in text for term in WORK_TERMS)
 
 
+def _is_cancellation_clause(text: str) -> bool:
+    normalized = normalize_text(text)
+    return any(term in normalized for term in CANCELLATION_TERMS)
+
+
+def _is_correction_text(text: str) -> bool:
+    normalized = normalize_text(text)
+    return any(term in normalized for term in CORRECTION_TERMS)
+
+
+def _cancellation_target(text: str) -> str:
+    normalized = normalize_text(text)
+    has_holiday = any(term in normalized for term in ("تعطیلی", "تعطیل"))
+    has_schedule = any(term in normalized for term in (
+        "ساعت کاری", "ساعات کاری", "کاهش ساعت", "تغییر ساعت", "دورکاری",
+        "دورکار", "تعجیل در پایان", "پایان کار", "آغاز به کار", "شروع به کار",
+    ))
+    if has_holiday and not has_schedule:
+        return "holiday"
+    if has_schedule and not has_holiday:
+        return "work_schedule"
+    return "both"
+
+
 def _contains_full_day_signal(text: str) -> bool:
     full_day_signal = any(term in text for term in DEFINITIVE_HOLIDAY_TERMS)
     early_only = any(
@@ -323,9 +356,11 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
     if not text:
         return result
     province = _province(text, article.province_hint)
+    cancellation_signal = _is_cancellation_clause(text)
+    correction_signal = _is_correction_text(text)
     if any(term in text for term in NEGATION_TERMS):
         result.pending.append(
-            _pending(article, "متن دارای تکذیب، شایعه، احتمال یا لغو است و خودکار منتشر نشد.", province)
+            _pending(article, "متن دارای تکذیب، شایعه یا عدم قطعیت است و خودکار منتشر نشد.", province)
         )
         return result
 
@@ -343,8 +378,54 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
         clauses = _decision_clauses(text)
     known_counties = _county_names(decision_text) or _county_names(text)
 
-    work_clauses = [clause for clause in clauses if _contains_work_signal(clause)]
-    if not work_clauses and _contains_work_signal(text):
+    cancellation_clauses = [clause for clause in clauses if _is_cancellation_clause(clause)]
+    if cancellation_signal and not cancellation_clauses:
+        cancellation_clauses = [text]
+    if cancellation_clauses:
+        if not dates:
+            result.pending.append(
+                _pending(article, "لغو یا منتفی‌شدن تصمیم اعلام شده، اما تاریخ تصمیم قبلی استخراج نشد.", province)
+            )
+        elif not official_authority:
+            result.pending.append(
+                _pending(article, "لغو تصمیم شناسایی شد، اما مرجع رسمی آن قابل اتکا نیست.", province)
+            )
+        else:
+            for clause in cancellation_clauses:
+                scope, scoped_province, counties, excluded_counties = _event_geography(
+                    clause, province, known_counties
+                )
+                if scope is None:
+                    scope, scoped_province = base_scope, base_province
+                if scope is None:
+                    result.pending.append(
+                        _pending(article, "لغو تصمیم شناسایی شد، اما محدوده اجرای تصمیم قبلی روشن نیست.", province)
+                    )
+                    continue
+                for date_value in sorted(set(dates)):
+                    result.cancellations.append(
+                        CancellationDirective(
+                            target=_cancellation_target(clause),
+                            date=date_value,
+                            scope=scope,
+                            province=scoped_province,
+                            counties=counties,
+                            excludedCounties=excluded_counties,
+                            includedOrganizations=_included(clause) or _included(text),
+                            excludedOrganizations=_excluded(text),
+                            title=article.title,
+                            authority=authority,
+                            sourceUrl=article.article_url,
+                            publishedAt=published,
+                            reason="لغو یا منتفی‌شدن رسمی تصمیم قبلی",
+                        )
+                    )
+
+    work_clauses = [
+        clause for clause in clauses
+        if _contains_work_signal(clause) and not _is_cancellation_clause(clause)
+    ]
+    if not work_clauses and _contains_work_signal(text) and not _is_cancellation_clause(text):
         work_clauses = [text]
 
     if work_clauses:
@@ -423,6 +504,7 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                             authority=authority,
                             sourceUrl=article.article_url,
                             publishedAt=published,
+                            status="updated" if correction_signal else "active",
                             startTime=effective_start_time,
                             endTime=effective_end_time,
                             includedOrganizations=clause_included,
@@ -438,8 +520,11 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                     if end_date and len(work_clauses) == 1:
                         break
 
-    holiday_clauses = [clause for clause in clauses if _contains_full_day_signal(clause)]
-    if not holiday_clauses and _contains_full_day_signal(text):
+    holiday_clauses = [
+        clause for clause in clauses
+        if _contains_full_day_signal(clause) and not _is_cancellation_clause(clause)
+    ]
+    if not holiday_clauses and _contains_full_day_signal(text) and not _is_cancellation_clause(text):
         holiday_clauses = [text]
 
     if holiday_clauses:
@@ -490,6 +575,7 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                             authority=authority,
                             sourceUrl=article.article_url,
                             publishedAt=published,
+                            status="updated" if correction_signal else "active",
                             includedOrganizations=_included(clause) or _included(text),
                             excludedOrganizations=_excluded(text),
                             note="استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است.",
@@ -499,7 +585,7 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
     result.holidays = _dedupe_holidays(result.holidays)
     result.work_schedules = _dedupe_schedules(result.work_schedules)
 
-    if not result.holidays and not result.work_schedules and not result.pending:
+    if not result.holidays and not result.work_schedules and not result.cancellations and not result.pending:
         if any(term in text for term in ("تعطیل", "ساعت کاری", "ساعات کاری", "دورکار")):
             result.pending.append(
                 _pending(article, "اطلاعیه مرتبط است اما شرایط انتشار خودکار را ندارد.", province)
