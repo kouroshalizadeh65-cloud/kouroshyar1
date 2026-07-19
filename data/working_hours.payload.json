@@ -1,7 +1,7 @@
 {
   "format": "kouroshyar-work-schedule-feed-v1",
-  "revision": 7,
-  "generatedAt": "2026-07-19T03:24:01.944315+00:00",
+  "revision": 8,
+  "generatedAt": "2026-07-19T07:56:57.185500+00:00",
   "schedules": [
     {
       "id": "national-work-hours-1405-summer",
@@ -366,6 +366,27 @@
       "province": "خوزستان",
       "includedOrganizations": [
         "ادارات"
+      ],
+      "note": "استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است."
+    },
+    {
+      "id": "work-سیستان-و-بلوچستان-1405-04-28-f5b79e67a8b7",
+      "date": "1405-04-28",
+      "title": "تعطیلی زودهنگام ادارات منطقه سیستان در روز یکشنبه در پی موج گرما",
+      "scheduleType": "changed_hours",
+      "scope": "county",
+      "authority": "استانداری سیستان و بلوچستان",
+      "sourceUrl": "https://www.irna.ir/news/86213062/%D8%AA%D8%B9%D8%B7%DB%8C%D9%84%DB%8C-%D8%B2%D9%88%D8%AF%D9%87%D9%86%DA%AF%D8%A7%D9%85-%D8%A7%D8%AF%D8%A7%D8%B1%D8%A7%D8%AA-%D9%85%D9%86%D8%B7%D9%82%D9%87-%D8%B3%DB%8C%D8%B3%D8%AA%D8%A7%D9%86-%D8%AF%D8%B1-%D8%B1%D9%88%D8%B2-%DB%8C%DA%A9%D8%B4%D9%86%D8%A8%D9%87-%D8%AF%D8%B1-%D9%BE%DB%8C-%D9%85%D9%88%D8%AC-%DA%AF%D8%B1%D9%85%D8%A7",
+      "publishedAt": "2026-07-19T07:13:46+00:00",
+      "status": "active",
+      "province": "سیستان و بلوچستان",
+      "counties": [
+        "منطقه سیستان"
+      ],
+      "endTime": "11:00",
+      "includedOrganizations": [
+        "ادارات",
+        "بانک‌ها"
       ],
       "note": "استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است."
     }
