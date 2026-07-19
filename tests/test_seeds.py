@@ -59,4 +59,12 @@ def test_verified_notices_preserve_county_scope_and_remainder_rules():
 
     assert schedule_by_id["work-khuzestan-1405-04-23-close-11"]["endTime"] == "11:00"
     assert schedule_by_id["work-khuzestan-1405-04-24-remote"]["scheduleType"] == "remote_work"
+
+    ilam_28_two_hours = schedule_by_id["work-ilam-1405-04-28-dehloran-mehran-close-11"]
+    assert ilam_28_two_hours["counties"] == ["دهلران", "مهران"]
+    assert ilam_28_two_hours["endTime"] == "11:00"
+
+    ilam_28_one_hour = schedule_by_id["work-ilam-1405-04-28-abdanan-darrehshahr-sirvan-close-12"]
+    assert ilam_28_one_hour["counties"] == ["آبدانان", "دره‌شهر", "سیروان"]
+    assert ilam_28_one_hour["endTime"] == "12:00"
     assert pending == []

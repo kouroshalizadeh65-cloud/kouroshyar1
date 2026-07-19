@@ -82,3 +82,21 @@ def test_irna_item_without_identifiable_official_authority_stays_pending():
     result = classify_article(item, 1405)
     assert not result.holidays and not result.work_schedules
     assert result.pending
+
+
+def test_relative_early_close_groups_use_official_summer_baseline():
+    item = article(
+        "اطلاعیه تعجیل در خروج ادارات استان ایلام برای یکشنبه 28 تیر",
+        "روابط عمومی و امور بین الملل استانداری ایلام اعلام کرد ساعات کاری ادارات، دستگاه های اجرایی، بانک ها و شرکت های بیمه در روز یکشنبه 28 تیرماه 1405 به شرح زیر است. شهرستان های دهلران، مهران: دو ساعت تعجیل در پایان ساعت کاری. شهرستان های آبدانان، دره شهر، سیروان: یک ساعت تعجیل در پایان ساعت کاری. دستگاه های خدمات رسان، مراکز درمانی، نیروهای نظامی و انتظامی، واحدهای عملیاتی و نیروهای شیفت گردان مستثنی هستند.",
+        "https://www.portal-il.ir/archives/arshive1/test-relative-close",
+        "ایلام",
+    )
+    result = classify_article(item, 1405)
+    assert not result.pending
+    assert len(result.work_schedules) == 2
+    by_end = {event.endTime: event for event in result.work_schedules}
+    assert by_end["11:00"].counties == ["دهلران", "مهران"]
+    assert by_end["12:00"].counties == ["آبدانان", "دره شهر", "سیروان"]
+    assert by_end["11:00"].startTime == "07:00"
+    assert by_end["12:00"].startTime == "07:00"
+    assert "محاسبه" in (by_end["11:00"].note or "")

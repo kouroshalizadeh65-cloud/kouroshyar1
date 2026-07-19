@@ -24,7 +24,7 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     push_paths = text.split("paths:", 1)[1].split("permissions:", 1)[0]
     assert "pubspec.yaml" not in push_paths
     assert "data/manual_overrides.json" in push_paths
-    assert "[bot v1.3.0]" in text
+    assert "[bot v1.3.1]" in text
 
 
 def test_no_sensitive_key_files_in_payload():
@@ -54,3 +54,14 @@ def test_android_artifact_name_and_version_checks_are_derived_from_pubspec():
     assert "versionName='$VERSION_NAME'" in text
     assert "name: ${{ env.ARTIFACT_NAME }}" in text
     assert "kouroshyar_v3_6_57" not in text
+
+
+def test_official_ilam_portal_is_allowlisted_and_configured():
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((root / "config" / "sources.yaml").read_text(encoding="utf-8"))
+    assert "portal-il.ir" in config["allowed_domains"]
+    source = next(item for item in config["sources"] if item["name"] == "استانداری ایلام - اطلاعیه‌ها و بخشنامه‌ها")
+    assert source["kind"] == "html_index"
+    assert source["province"] == "ایلام"
+    assert source["url"] == "https://www.portal-il.ir/archives/arshive1"

@@ -37,6 +37,11 @@ _COUNTY_STOP_WORDS = {
     "سایر",
     "همه",
     "تمام",
+    "یک",
+    "دو",
+    "سه",
+    "چهار",
+    "پنج",
 }
 
 _CLAUSE_SPLIT = re.compile(r"(?:[.!؟؛]+|\s+(?:همچنین|از سوی دیگر|در حالی که|بر پایه این اطلاعیه|بر این اساس)\s+)")
@@ -127,6 +132,7 @@ def _included(text: str) -> list[str]:
 
 def _clean_county_name(value: str) -> str | None:
     value = normalize_text(value)
+    value = re.sub(r"\s*[:：]\s*(?:یک|دو|سه|چهار|پنج|\d{1,2})\s*$", "", value)
     value = re.sub(r"^(?:شهرستان|شهر)\s+", "", value).strip(" ،,:؛-")
     value = re.sub(
         r"\s+(?:در|روز|فردا|امروز|تعطیل|فعالیت|ادارات|دستگاه|بانک|شرکت|ساعت|با|به|مشمول|مستثنی|پایان|آغاز|کاهش|افزایش)\b.*$",
@@ -222,6 +228,39 @@ def _schedule_type(text: str) -> str:
     ):
         return "early_close"
     return "changed_hours"
+
+
+_NUMBER_WORDS = {
+    "یک": 1,
+    "دو": 2,
+    "سه": 3,
+    "چهار": 4,
+    "پنج": 5,
+}
+
+
+def _relative_early_close_hours(text: str) -> int | None:
+    normalized = normalize_text(text)
+    match = re.search(
+        r"(?<!\S)(یک|دو|سه|چهار|پنج|\d{1,2})\s*ساعت\s*(?:تعجیل|کاهش|زودتر)",
+        normalized,
+    )
+    if not match:
+        return None
+    raw = match.group(1)
+    value = _NUMBER_WORDS.get(raw, int(raw) if raw.isdigit() else 0)
+    return value if 1 <= value <= 5 else None
+
+
+def _summer_1405_end_time(date_value: str, reduction_hours: int | None) -> str | None:
+    if reduction_hours is None:
+        return None
+    # برنامه رسمی ۱۴۰۵ از ۲۶ اردیبهشت تا ۱۵ شهریور، ۷ تا ۱۳ است.
+    if "1405-02-26" <= date_value <= "1405-06-15":
+        end_hour = 13 - reduction_hours
+        if 0 <= end_hour <= 23:
+            return f"{end_hour:02d}:00"
+    return None
 
 
 def _event_geography(
@@ -332,6 +371,11 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                     continue
                 schedule_type = _schedule_type(clause)
                 start_time, end_time_for_clause = extract_times(clause)
+                relative_reduction = (
+                    _relative_early_close_hours(clause)
+                    if schedule_type == "early_close"
+                    else None
+                )
                 if len(work_clauses) == 1:
                     start_time = start_time or global_start_time
                     end_time_for_clause = end_time_for_clause or global_end_time
@@ -340,6 +384,10 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                     or end_time_for_clause
                     or schedule_type in {"remote_work", "delayed_start", "early_close"}
                 ):
+                    # در اطلاعیه‌های چندبخشی، جمله مقدمه فقط موضوع را معرفی می‌کند؛
+                    # وقتی بندهای اجرایی روشن وجود دارند، مقدمه جداگانه pending نمی‌شود.
+                    if len(work_clauses) > 1:
+                        continue
                     result.pending.append(
                         _pending(article, "تغییر ساعت شناسایی شد اما ساعت یا نوع تغییر روشن نیست.", province)
                     )
@@ -348,6 +396,12 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                 clause_excluded = _excluded(text)
                 geo_suffix = ",".join(counties or excluded_counties)
                 for date_value in sorted(set(dates)):
+                    effective_end_time = end_time_for_clause or _summer_1405_end_time(
+                        date_value, relative_reduction
+                    )
+                    effective_start_time = start_time
+                    if relative_reduction is not None and effective_end_time is not None:
+                        effective_start_time = effective_start_time or "07:00"
                     result.work_schedules.append(
                         WorkScheduleEvent(
                             id=_stable_id(
@@ -356,7 +410,7 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                                 scope,
                                 scoped_province,
                                 article.article_url,
-                                f"{schedule_type}|{geo_suffix}|{start_time}|{end_time_for_clause}",
+                                f"{schedule_type}|{geo_suffix}|{effective_start_time}|{effective_end_time}",
                             ),
                             date=date_value,
                             endDate=end_date if end_date and date_value == start_date and len(work_clauses) == 1 else None,
@@ -369,11 +423,16 @@ def classify_article(article: Article, only_year: int | None = None) -> Classifi
                             authority=authority,
                             sourceUrl=article.article_url,
                             publishedAt=published,
-                            startTime=start_time,
-                            endTime=end_time_for_clause,
+                            startTime=effective_start_time,
+                            endTime=effective_end_time,
                             includedOrganizations=clause_included,
                             excludedOrganizations=clause_excluded,
-                            note="استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است.",
+                            note=(
+                                "زمان پایان از کاهش اعلام‌شده و بازه رسمی ۷ تا ۱۳ محاسبه شده است؛ "
+                                "محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است."
+                                if relative_reduction is not None and end_time_for_clause is None
+                                else "استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است."
+                            ),
                         )
                     )
                     if end_date and len(work_clauses) == 1:

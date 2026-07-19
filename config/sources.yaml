@@ -1,11 +1,12 @@
 expected_public_key_b64: sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18=
-user_agent: KouroshYar-Holiday-Bot/1.3.0 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
+user_agent: KouroshYar-Holiday-Bot/1.3.1 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
 timeout_seconds: 25
 max_response_bytes: 2500000
 current_lookback_hours: 240
 allowed_domains:
 - irna.ir
 - dolat.ir
+- portal-il.ir
 sources:
 - name: پایگاه اطلاع‌رسانی دولت - بخشنامه‌ها
   kind: html_index
@@ -23,6 +24,16 @@ sources:
   - تعجیل
   - با تاخیر
   - با تأخیر
+  max_items: 120
+  modes:
+  - current
+  - backfill_1405
+- name: استانداری ایلام - اطلاعیه‌ها و بخشنامه‌ها
+  kind: html_index
+  url: https://www.portal-il.ir/archives/arshive1
+  link_regex: https://www\.portal-il\.ir/archives/arshive1/.+
+  province: ایلام
+  candidate_terms: *id001
   max_items: 120
   modes:
   - current

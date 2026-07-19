@@ -123,6 +123,12 @@ def validate_payloads(holiday_payload: dict[str, Any], work_payload: dict[str, A
             raise ValueError("رکورد بازه‌ای ساعت کاری رسمی معتبر نیست.")
         if not any(i.get("id") == "work-ilam-1405-04-24-early-close-11" for i in schedules):
             raise ValueError("اطلاعیه تاییدشده ایلام در خوراک ساعات کاری وجود ندارد.")
+        required_ilam_28 = {
+            "work-ilam-1405-04-28-dehloran-mehran-close-11",
+            "work-ilam-1405-04-28-abdanan-darrehshahr-sirvan-close-12",
+        }
+        if not required_ilam_28.issubset(schedule_ids):
+            raise ValueError("اطلاعیه رسمی تغییر ساعت ۲۸ تیر ایلام ناقص است.")
         county_holidays = [
             i for i in holidays
             if i.get("id") == "holiday-ilam-dehloran-1405-04-24"

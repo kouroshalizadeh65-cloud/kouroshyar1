@@ -76,7 +76,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.3.0"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.3.1"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -128,7 +128,7 @@ jobs:
         env:
           INPUT_MODE: ${{ github.event.inputs.mode }}
           INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
-          KOUROSHYAR_FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true' }}
+          KOUROSHYAR_FORCE_PUBLISH: 'false'
         run: |
           set -euo pipefail
           MODE="${INPUT_MODE:-current}"
@@ -196,7 +196,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.3.0]"
+          git commit -m "chore: update signed holiday feeds [bot v1.3.1]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then
