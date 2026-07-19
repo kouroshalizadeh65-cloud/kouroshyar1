@@ -1,7 +1,7 @@
 {
   "schema": "kouroshyar-feed-revision-floor-v1",
   "holidayRevisionFloor": 5,
-  "workingHoursRevisionFloor": 5,
-  "updatedAt": "2026-07-18T21:29:07.575556+00:00",
+  "workingHoursRevisionFloor": 6,
+  "updatedAt": "2026-07-19T00:13:59.917050+00:00",
   "updatedBy": "bot-v1.3.0"
 }
