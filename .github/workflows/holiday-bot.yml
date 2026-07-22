@@ -23,6 +23,7 @@ on:
       - main
     paths:
       - "holiday_bot/**"
+      - "tests/**"
       - "config/sources.yaml"
       - "data/official_holidays_1405.json"
       - "data/official_work_schedules_1405.json"
