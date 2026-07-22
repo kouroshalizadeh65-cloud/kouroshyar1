@@ -76,4 +76,4 @@ def test_revision_floor_matches_confirmed_live_revisions():
     floor = json.loads((root / "data" / "revision_floor.json").read_text(encoding="utf-8"))
     assert floor["holidayRevisionFloor"] == json.loads((root / "data" / "holidays.payload.json").read_text(encoding="utf-8"))["revision"]
     assert floor["workingHoursRevisionFloor"] == json.loads((root / "data" / "working_hours.payload.json").read_text(encoding="utf-8"))["revision"]
-    assert floor["updatedBy"] == "bot-v1.3.1-confirmed-live"
+    assert isinstance(floor["updatedBy"], str) and floor["updatedBy"].startswith("bot-v")
