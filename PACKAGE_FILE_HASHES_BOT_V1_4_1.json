@@ -1,7 +1,11 @@
 {
-  "schema": "kouroshyar-package-file-hashes-v1",
-  "botVersion": "1.4.0",
-  "fileCount": 256,
+  "schema": "kouroshyar-package-hashes-v1",
+  "appVersion": "3.6.59+131",
+  "botVersion": "1.4.1",
+  "packageRevision": 2,
+  "expectedHolidayRevision": 7,
+  "expectedWorkingHoursRevision": 10,
+  "selfExcluded": true,
   "files": [
     {
       "path": ".github/workflows/build-apk.yml",
@@ -10,8 +14,8 @@
     },
     {
       "path": ".github/workflows/holiday-bot.yml",
-      "size": 11892,
-      "sha256": "f9b6f30f3234cd2bc10434853a720e32757847beaa320af84f29d97b7f61c1ac"
+      "size": 12987,
+      "sha256": "6808b03b8f500730d6a1fe0b6f2c7dad92d5ddeb5d7ac1abb9fb7df5a21b8460"
     },
     {
       "path": ".gitignore",
@@ -35,8 +39,8 @@
     },
     {
       "path": "CHANGELOG_HOLIDAY_BOT.md",
-      "size": 9842,
-      "sha256": "0026cda32cc39e98799a60801f3e1c7264434b029e8409126c88058866802ef7"
+      "size": 11442,
+      "sha256": "ba5c62249ad87efa424e4a03e7bbc26cc8bd89f8d675b3e7ae5540c810a6a22c"
     },
     {
       "path": "CHANGELOG_V3_4_0.md",
@@ -436,7 +440,7 @@
     {
       "path": "HOLIDAY_BOT_VERSION",
       "size": 6,
-      "sha256": "78b591400c56b7b67b8cb3b2b8a8e65e9093897f02ce0878e6b5405c68620fa7"
+      "sha256": "7d072b48526b023950e4c48db01e8c273554a6401119f5691e7589ba9bc65d9d"
     },
     {
       "path": "HOLIDAY_UPDATE_SETUP_V3_6_53.md",
@@ -459,9 +463,9 @@
       "sha256": "e42363169e5bb1dc2b48d531e99634c234af0aab9a967082f8f5c6f318ea2c56"
     },
     {
-      "path": "PACKAGE_VALIDATION_REPORT_BOT_V1_4_0.md",
-      "size": 1115,
-      "sha256": "3f178fbe917a5d66bad0a600d420073b792cc4354e615a020ae71fd2c727b6aa"
+      "path": "PACKAGE_VALIDATION_REPORT_BOT_V1_4_1.md",
+      "size": 887,
+      "sha256": "b953bc5efddce269b283eb62d90da5c478d8f104f0ac530d537d1fbe24e5a0fd"
     },
     {
       "path": "PACKAGE_VALIDATION_REPORT_V3_6_59.md",
@@ -471,12 +475,12 @@
     {
       "path": "README.md",
       "size": 2780,
-      "sha256": "1ecf644ec3cd2613cf0ef5980ea424f41749d705f1ce81b49703bd28b426eef3"
+      "sha256": "b1d57b1b52b6140fa8704cb56ae4595c3e0a0f2fc77f03be25be7370b21ec687"
     },
     {
       "path": "README_HOLIDAY_BOT.md",
-      "size": 5752,
-      "sha256": "293d8c38fd7e836bef1e5077c9d0c18b5e86442a83d37947a912dce762a618d2"
+      "size": 6498,
+      "sha256": "fbd02e69ca46e0e3fce4badce7fc772de9fc5cbfce0f8580fdcb2b9b34832319"
     },
     {
       "path": "SIGNING_SETUP_V3_6_40.md",
@@ -499,9 +503,9 @@
       "sha256": "ae0d39ede236c8473adb75f5a5f7551761e909035bb74c300a1e46e61c9a50bd"
     },
     {
-      "path": "SOURCE_PACKAGE_MANIFEST_BOT_V1_4_0.json",
-      "size": 1234,
-      "sha256": "e578ff45b128d77398a4dcc7ea18e590ea55d3531e5aa63050b8c98f68a7ee26"
+      "path": "SOURCE_PACKAGE_MANIFEST_BOT_V1_4_1.json",
+      "size": 746,
+      "sha256": "063ddea422689fb289990746409ce3b1450fbb7aafd7e85cce7207c9bbf7624c"
     },
     {
       "path": "SOURCE_PACKAGE_MANIFEST_V3_6_59.json",
@@ -514,9 +518,9 @@
       "sha256": "7d4f78a192e639a3a4fe0ff5de6b5c21d73e8eece6725be8f580b66e70347a88"
     },
     {
-      "path": "SOURCE_VALIDATION_BOT_V1_4_0.md",
-      "size": 2807,
-      "sha256": "d57e31bc6499b0ab187d4536c9bcc1a93a7fd58a563f8fb29a99e6e3ba3e4f4c"
+      "path": "SOURCE_VALIDATION_BOT_V1_4_1.md",
+      "size": 4994,
+      "sha256": "18476fd21a59ab5e56bcb4f94cb6e641750b84807fe1f70d6d1db2fc92c9519c"
     },
     {
       "path": "SOURCE_VALIDATION_V3_6_45.md",
@@ -695,8 +699,8 @@
     },
     {
       "path": "config/sources.yaml",
-      "size": 26356,
-      "sha256": "6e8e0c0bbadde406efd4bbc154ae90e1678ac7283ca32281124f8c4f6c39a3d5"
+      "size": 26562,
+      "sha256": "9a9648a3ca98350b0f1e539f3ee9d47f3b84a630ff764daa991bf407567dac17"
     },
     {
       "path": "data/holidays.payload.json",
@@ -746,7 +750,7 @@
     {
       "path": "docs/DATA_RULES_FA.md",
       "size": 3722,
-      "sha256": "a55959a4d0d37878d09253e47ea5a5d494e98066e4b376195060bbec03c2d9fa"
+      "sha256": "3da1086c631c1c8b3db4638fe5af222b4e09b40b5675cfc2bc1e882ede6c5502"
     },
     {
       "path": "holiday_bot/__init__.py",
@@ -765,18 +769,18 @@
     },
     {
       "path": "holiday_bot/cli.py",
-      "size": 4115,
-      "sha256": "0e5c99085193203f371d1edbf5f5e82f77af49bc4a9d651695acb7c7248b3f18"
+      "size": 5293,
+      "sha256": "67c6e31de712c3576776406b5272ecf64a53f0df61889383d6c64991b0d871e6"
     },
     {
       "path": "holiday_bot/config.py",
-      "size": 3993,
-      "sha256": "a978e913d7b07b101d63b93b0c0f97f4cac669a1765e624cd6bcc7ea96d78d78"
+      "size": 5354,
+      "sha256": "0da7160421cf9da64ac66544a5c1c2f2cfe0dba1728015a75234147d8d548779"
     },
     {
       "path": "holiday_bot/constants.py",
-      "size": 3844,
-      "sha256": "f50a2c4ac0defe796abd8d52594f0ff091a0641bcd887357b2ff3364cf014364"
+      "size": 3843,
+      "sha256": "ec335fda5681e686da7802e5c0ce35f22a69ccfd0aaa332ccc115e8925b76798"
     },
     {
       "path": "holiday_bot/dates.py",
@@ -785,13 +789,13 @@
     },
     {
       "path": "holiday_bot/engine.py",
-      "size": 20592,
-      "sha256": "8326575e17016a838b6a715f807fe18f41bf52c30c53cc228fd5048b28466bc2"
+      "size": 24596,
+      "sha256": "a0c7aa1c225ab9022cf404aa369233ade33536cc4c01cc2965ae65a9794cab8d"
     },
     {
       "path": "holiday_bot/extract.py",
-      "size": 19682,
-      "sha256": "154d9623fdc9145bf9b52767eb2f24bfecb1bf4a6ad7e22b6c63021db4dbe863"
+      "size": 26987,
+      "sha256": "077bfb3c3f6046735d34e0aeeeb271dc43330682c351162a5239965f74452ca0"
     },
     {
       "path": "holiday_bot/models.py",
@@ -1239,6 +1243,11 @@
       "sha256": "c0a7e19b8567efdba4ca6524d2d9e821787d309a04cea3a584ee01f97904c702"
     },
     {
+      "path": "tests/test_http_retry_and_reporting.py",
+      "size": 4500,
+      "sha256": "8da2f9d4c11e8434c6c166aaf75695ef37db6dbad5e0d360f7113ba0800fa00d"
+    },
+    {
       "path": "tests/test_public_discovery.py",
       "size": 5510,
       "sha256": "e84a66dac42813d3fd069aaf8b710bbf2edf587115431e7f22bc4206dbbae575"
@@ -1270,13 +1279,13 @@
     },
     {
       "path": "tests/test_source_health_gate.py",
-      "size": 1721,
-      "sha256": "6ffed985a9953e5fd1054a49b7d5b8a28d45a290806af54db6a63ccb10f41139"
+      "size": 3336,
+      "sha256": "1c631e28909f04933142852857995efbf72f8a0a5a091d4298022be506e6055f"
     },
     {
       "path": "tests/test_workflow.py",
-      "size": 4956,
-      "sha256": "2f776283371736782da5627f4914405dcb610c27991a7e78e01d40c1f225603b"
+      "size": 5379,
+      "sha256": "cf4765bc8f1555a6317f88adfdbe8cdb1ef7d6a18a66e1170740d89219a3cf32"
     },
     {
       "path": "tools/sign_holiday_feed.py",

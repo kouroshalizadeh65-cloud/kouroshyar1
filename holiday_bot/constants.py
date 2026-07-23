@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-BOT_VERSION = "1.4.0"
-CLASSIFIER_VERSION = "1.4.0-official-channel-search-rolling-recheck-health-gate"
+BOT_VERSION = "1.4.1"
+CLASSIFIER_VERSION = "1.4.1-official-channel-search-retry-deferred-health-gate"
 HOLIDAY_FEED_FORMAT = "kouroshyar-holiday-feed-v1"
 WORK_SCHEDULE_FEED_FORMAT = "kouroshyar-work-schedule-feed-v1"
 EXPECTED_PUBLIC_KEY_B64 = "sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18="

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from typing import Callable
 from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 from zoneinfo import ZoneInfo
 
@@ -18,7 +21,22 @@ from .text import normalize_text
 
 
 class FetchError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "fetch_error",
+        transient: bool = False,
+        status_code: int | None = None,
+        attempts: int = 1,
+        url: str | None = None,
+    ):
+        super().__init__(message)
+        self.category = category
+        self.transient = transient
+        self.status_code = status_code
+        self.attempts = attempts
+        self.url = url
 
 
 def _domain_allowed(hostname: str | None, allowed_domains: set[str]) -> bool:
@@ -29,7 +47,16 @@ def _domain_allowed(hostname: str | None, allowed_domains: set[str]) -> bool:
 
 
 class SafeHttpClient:
-    def __init__(self, user_agent: str, timeout_seconds: int = 20, max_bytes: int = 2_000_000):
+    def __init__(
+        self,
+        user_agent: str,
+        timeout_seconds: int = 20,
+        max_bytes: int = 2_000_000,
+        retry_attempts: int = 3,
+        retry_backoff_seconds: float = 2.0,
+        retry_max_wait_seconds: float = 30.0,
+        sleep_func: Callable[[float], None] = time.sleep,
+    ):
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": user_agent,
@@ -37,28 +64,172 @@ class SafeHttpClient:
         })
         self.timeout_seconds = timeout_seconds
         self.max_bytes = max_bytes
+        self.retry_attempts = max(0, min(int(retry_attempts), 6))
+        self.retry_backoff_seconds = max(0.0, float(retry_backoff_seconds))
+        self.retry_max_wait_seconds = max(0.0, float(retry_max_wait_seconds))
+        self._sleep = sleep_func
+        self._telemetry: dict[str, float | int] = {
+            "requestAttempts": 0,
+            "retryCount": 0,
+            "rateLimitRetries": 0,
+            "transientHttpRetries": 0,
+            "networkRetries": 0,
+            "retryWaitSeconds": 0.0,
+            "pageDelaySeconds": 0.0,
+        }
+
+    @property
+    def telemetry(self) -> dict[str, float | int]:
+        result = dict(self._telemetry)
+        result["retryWaitSeconds"] = round(float(result["retryWaitSeconds"]), 3)
+        result["pageDelaySeconds"] = round(float(result["pageDelaySeconds"]), 3)
+        return result
+
+    def pause(self, seconds: float) -> None:
+        seconds = max(0.0, float(seconds))
+        if seconds <= 0:
+            return
+        self._telemetry["pageDelaySeconds"] = float(self._telemetry["pageDelaySeconds"]) + seconds
+        self._sleep(seconds)
+
+    def _retry_wait(self, response: requests.Response | None, retry_number: int) -> float:
+        if response is not None:
+            raw = response.headers.get("Retry-After", "").strip()
+            if raw:
+                try:
+                    return min(self.retry_max_wait_seconds, max(0.0, float(raw)))
+                except ValueError:
+                    try:
+                        retry_at = parsedate_to_datetime(raw)
+                        if retry_at.tzinfo is None:
+                            retry_at = retry_at.replace(tzinfo=timezone.utc)
+                        seconds = (retry_at.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+                        return min(self.retry_max_wait_seconds, max(0.0, seconds))
+                    except (TypeError, ValueError, OverflowError):
+                        pass
+        fallback = self.retry_backoff_seconds * (2 ** max(0, retry_number - 1))
+        return min(self.retry_max_wait_seconds, fallback)
+
+    def _record_retry(self, category: str, wait_seconds: float) -> None:
+        self._telemetry["retryCount"] = int(self._telemetry["retryCount"]) + 1
+        key = {
+            "rate_limited": "rateLimitRetries",
+            "transient_http": "transientHttpRetries",
+            "network": "networkRetries",
+        }[category]
+        self._telemetry[key] = int(self._telemetry[key]) + 1
+        self._telemetry["retryWaitSeconds"] = float(self._telemetry["retryWaitSeconds"]) + wait_seconds
+        if wait_seconds > 0:
+            self._sleep(wait_seconds)
 
     def get(self, url: str, allowed_domains: set[str]) -> requests.Response:
         parsed = urlparse(url)
         if parsed.scheme != "https" or not parsed.hostname:
-            raise FetchError(f"only HTTPS sources are allowed: {url}")
+            raise FetchError(f"only HTTPS sources are allowed: {url}", category="unsafe_url", url=url)
         if not _domain_allowed(parsed.hostname, allowed_domains):
-            raise FetchError(f"source domain is not allowlisted: {parsed.hostname}")
-        response = self.session.get(url, timeout=self.timeout_seconds, allow_redirects=True, stream=True)
-        final = urlparse(response.url)
-        if final.scheme != "https" or not _domain_allowed(final.hostname, allowed_domains):
-            raise FetchError(f"redirect left allowlisted domains: {response.url}")
-        response.raise_for_status()
-        content = bytearray()
-        for chunk in response.iter_content(64 * 1024):
-            content.extend(chunk)
-            if len(content) > self.max_bytes:
-                raise FetchError(f"response too large: {url}")
-        response._content = bytes(content)
-        response._content_consumed = True
-        if not response.encoding or response.encoding.lower() in {"iso-8859-1", "latin-1"}:
-            response.encoding = response.apparent_encoding or "utf-8"
-        return response
+            raise FetchError(
+                f"source domain is not allowlisted: {parsed.hostname}",
+                category="domain_not_allowed",
+                url=url,
+            )
+
+        max_attempts = self.retry_attempts + 1
+        for attempt in range(1, max_attempts + 1):
+            self._telemetry["requestAttempts"] = int(self._telemetry["requestAttempts"]) + 1
+            response: requests.Response | None = None
+            try:
+                response = self.session.get(
+                    url,
+                    timeout=self.timeout_seconds,
+                    allow_redirects=True,
+                    stream=True,
+                )
+            except requests.RequestException as exc:
+                if attempt < max_attempts:
+                    wait = self._retry_wait(None, attempt)
+                    self._record_retry("network", wait)
+                    continue
+                raise FetchError(
+                    f"network request failed after {attempt} attempts: {url}: {exc}",
+                    category="network",
+                    transient=True,
+                    attempts=attempt,
+                    url=url,
+                ) from exc
+
+            final = urlparse(response.url)
+            if final.scheme != "https" or not _domain_allowed(final.hostname, allowed_domains):
+                response.close()
+                raise FetchError(
+                    f"redirect left allowlisted domains: {response.url}",
+                    category="unsafe_redirect",
+                    attempts=attempt,
+                    url=url,
+                )
+
+            status = int(response.status_code)
+            transient_category = "rate_limited" if status == 429 else "transient_http" if 500 <= status <= 599 else None
+            if transient_category is not None:
+                if attempt < max_attempts:
+                    wait = self._retry_wait(response, attempt)
+                    response.close()
+                    self._record_retry(transient_category, wait)
+                    continue
+                response.close()
+                raise FetchError(
+                    f"HTTP {status} after {attempt} attempts: {url}",
+                    category=transient_category,
+                    transient=True,
+                    status_code=status,
+                    attempts=attempt,
+                    url=url,
+                )
+
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as exc:
+                response.close()
+                raise FetchError(
+                    f"HTTP {status}: {url}",
+                    category="http_error",
+                    status_code=status,
+                    attempts=attempt,
+                    url=url,
+                ) from exc
+
+            content = bytearray()
+            try:
+                for chunk in response.iter_content(64 * 1024):
+                    content.extend(chunk)
+                    if len(content) > self.max_bytes:
+                        response.close()
+                        raise FetchError(
+                            f"response too large: {url}",
+                            category="response_too_large",
+                            attempts=attempt,
+                            url=url,
+                        )
+            except requests.RequestException as exc:
+                response.close()
+                if attempt < max_attempts:
+                    wait = self._retry_wait(None, attempt)
+                    self._record_retry("network", wait)
+                    continue
+                raise FetchError(
+                    f"response stream failed after {attempt} attempts: {url}: {exc}",
+                    category="network",
+                    transient=True,
+                    attempts=attempt,
+                    url=url,
+                ) from exc
+
+            response._content = bytes(content)
+            response._content_consumed = True
+            if not response.encoding or response.encoding.lower() in {"iso-8859-1", "latin-1"}:
+                response.encoding = response.apparent_encoding or "utf-8"
+            return response
+
+        raise AssertionError("HTTP retry loop ended unexpectedly")
 
 
 def parse_published(value: str | None) -> datetime:
@@ -177,7 +348,10 @@ def _candidate(text: str, terms: tuple[str, ...]) -> bool:
 
 
 def _summary_text(value: str) -> str:
-    return normalize_text(BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True))
+    raw = value or ""
+    if "<" not in raw and ">" not in raw:
+        return normalize_text(raw)
+    return normalize_text(BeautifulSoup(raw, "html.parser").get_text(" ", strip=True))
 
 
 def fetch_rss_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str]) -> list[Article]:
@@ -359,17 +533,19 @@ def _message_id(url: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def fetch_public_channel_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str]) -> list[Article]:
+def fetch_public_channel_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str], mode: str = "current") -> list[Article]:
     channel_url = str(source["url"]).rstrip("/")
     terms = tuple(source.get("candidate_terms", ("تعطیل", "ساعت کاری", "ساعات کاری", "پایان کار", "آغاز به کار", "دورکار", "کاهش ساعت", "تعجیل")))
-    max_pages = max(1, min(int(source.get("max_pages", 12)), 40))
+    configured_pages = source.get("current_max_pages") if mode == "current" else source.get("backfill_max_pages")
+    max_pages = max(1, min(int(configured_pages or source.get("max_pages", 12)), 40))
+    page_delay = float(source.get("current_page_delay_seconds", 0.0) if mode == "current" else source.get("backfill_page_delay_seconds", source.get("page_delay_seconds", 0.0)))
     max_items = max(1, min(int(source.get("max_items", 300)), 1000))
     page_url = channel_url
     result: list[Article] = []
     seen_urls: set[str] = set()
     parsed_any_message = False
 
-    for _ in range(max_pages):
+    for page_index in range(max_pages):
         response = client.get(page_url, allowed_domains)
         soup = BeautifulSoup(response.text, "html.parser")
         nodes = _message_nodes(soup, channel_url)
@@ -414,6 +590,8 @@ def fetch_public_channel_articles(client: SafeHttpClient, source: dict, allowed_
         if next_url == page_url:
             break
         page_url = next_url
+        if page_delay > 0 and page_index + 1 < max_pages and hasattr(client, "pause"):
+            client.pause(page_delay)
     return result
 
 

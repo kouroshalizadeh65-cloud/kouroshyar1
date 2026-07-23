@@ -47,13 +47,24 @@ jobs:
 
     steps:
       - name: Checkout complete history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: main
           fetch-depth: 0
 
+      - name: Validate execution target
+        shell: bash
+        env:
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          DRY="${INPUT_DRY_RUN:-false}"
+          if [ "$DRY" != "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Publishing is allowed only from the main branch. Use dry_run=true for branch validation."
+            exit 1
+          fi
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -78,7 +89,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.4.0"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.4.1"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -136,9 +147,19 @@ jobs:
           MODE="${INPUT_MODE:-current}"
           DRY="${INPUT_DRY_RUN:-false}"
           mkdir -p reports
-          args=(python -m holiday_bot update --mode "$MODE" --private-key "$RUNNER_TEMP/holiday_feed_private.pem")
+          args=(python -m holiday_bot update --mode "$MODE" --private-key "$RUNNER_TEMP/holiday_feed_private.pem" --report-output reports/workflow_result.json)
           if [ "$DRY" = "true" ]; then args+=(--dry-run); fi
-          "${args[@]}" | tee reports/workflow_result.json
+          set +e
+          "${args[@]}"
+          BOT_STATUS=$?
+          set -e
+          test -s reports/workflow_result.json || {
+            printf '%s\n' '{"workflowStatus":"failed_no_publish","publicationAllowed":false,"error":"workflow_result.json was not produced"}' > reports/workflow_result.json
+          }
+          cat reports/workflow_result.json
+          if [ "$BOT_STATUS" -ne 0 ]; then
+            exit "$BOT_STATUS"
+          fi
           if [ "$DRY" != "true" ]; then
             python -m holiday_bot validate \
               --holidays holiday_feed/holidays.json \
@@ -165,13 +186,17 @@ jobs:
           assert floor["workingHoursAfter"] == report["workingHoursRevision"], report
           health = report["sourceHealth"]
           assert report["healthGatePassed"] is True, report
-          assert health["schema"] == "kouroshyar-source-health-v2", report
+          assert report["workflowStatus"] == "passed", report
+          assert report["publicationAllowed"] is True, report
+          assert health["schema"] == "kouroshyar-source-health-v3", report
           assert health["attempted"] == report["sourcesAttempted"], report
           assert health["succeeded"] == report["sourcesSucceeded"], report
           assert health["successRatio"] >= 0.70, report
           assert health["provinceDiscoveryCoverage"] >= 28, report
           assert health["healthGate"]["ok"] is True, report
+          assert health["healthGate"]["result"] == "passed", report
           assert not health["criticalFailures"], report
+          assert "retryTotals" in health, report
           assert Path("reports/source_health.json").is_file(), report
           print(json.dumps({"ok": True, "validation": validation, "holidayRevision": report["holidayRevision"], "workingHoursRevision": report["workingHoursRevision"], "revisionFloor": floor, "sourceHealth": health, "reconciliation": report["reconciliation"]}, ensure_ascii=False, indent=2))
           PY
@@ -179,7 +204,7 @@ jobs:
 
       - name: Upload run report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: holiday-bot-report-${{ github.run_number }}
           path: reports/*.json
@@ -208,7 +233,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.4.0]"
+          git commit -m "chore: update signed holiday feeds [bot v1.4.1]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then

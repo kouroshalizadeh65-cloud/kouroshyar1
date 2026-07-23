@@ -30,6 +30,14 @@ def load_config(path: Path) -> dict[str, Any]:
     if any(not isinstance(item, str) or not item.strip() for item in domains):
         raise ValueError("یکی از دامنه‌های مجاز معتبر نیست.")
 
+    retry_attempts = int(config.get("http_retry_attempts", 3))
+    if not 0 <= retry_attempts <= 6:
+        raise ValueError("تعداد تلاش مجدد HTTP باید بین صفر و شش باشد.")
+    retry_backoff = float(config.get("http_retry_backoff_seconds", 2.0))
+    retry_max_wait = float(config.get("http_retry_max_wait_seconds", 30.0))
+    if retry_backoff < 0 or retry_max_wait < 0:
+        raise ValueError("فاصله تلاش مجدد HTTP نمی‌تواند منفی باشد.")
+
     sources = config.get("sources")
     if not isinstance(sources, list) or not sources:
         raise ValueError("حداقل یک منبع لازم است.")
@@ -56,6 +64,16 @@ def load_config(path: Path) -> dict[str, Any]:
             raise ValueError(f"الگوی پیوند منبع HTML خالی است: {source['name']}")
         if source["kind"] == "bing_news" and not province:
             raise ValueError(f"منبع جستجوی خبری باید استان داشته باشد: {source['name']}")
+        if source["kind"] == "public_channel":
+            current_pages = int(source.get("current_max_pages", source.get("max_pages", 12)))
+            backfill_pages = int(source.get("backfill_max_pages", source.get("max_pages", 12)))
+            if not 1 <= current_pages <= 40 or not 1 <= backfill_pages <= 40:
+                raise ValueError(f"تعداد صفحات کانال عمومی معتبر نیست: {source['name']}")
+            if current_pages > backfill_pages:
+                raise ValueError(f"پایش جاری کانال نباید از backfill عمیق‌تر باشد: {source['name']}")
+            for key in ("current_page_delay_seconds", "backfill_page_delay_seconds"):
+                if float(source.get(key, 0.0)) < 0:
+                    raise ValueError(f"تاخیر صفحه‌بندی منفی است: {source['name']}")
         if source.get("coverage_role") == "province_discovery" and province:
             discovery_provinces.add(province)
         if source.get("verified_official") and province:

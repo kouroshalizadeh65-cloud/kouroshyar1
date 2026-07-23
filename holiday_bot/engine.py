@@ -11,7 +11,7 @@ from .classify import classify_article
 from .config import load_config
 from .constants import BOT_VERSION, CLASSIFIER_VERSION, HOLIDAY_FEED_FORMAT, PROVINCES, WORK_SCHEDULE_FEED_FORMAT
 from .extract import (
-    SafeHttpClient, article_content_hash, article_fingerprint, fetch_bing_news_articles,
+    FetchError, SafeHttpClient, article_content_hash, article_fingerprint, fetch_bing_news_articles,
     fetch_html_index_articles, fetch_irna_archive_articles, fetch_irna_tag_articles,
     fetch_public_channel_articles, fetch_rss_articles,
 )
@@ -26,6 +26,12 @@ from .storage import (
     read_json, revision_floor_json, sign_payload, write_json,
 )
 from .validate import validate_payloads
+
+
+class HealthGateError(RuntimeError):
+    def __init__(self, message: str, report: dict[str, Any]):
+        super().__init__(message)
+        self.report = report
 
 
 def _canonical(items: list[dict[str, Any]]) -> str:
@@ -77,7 +83,7 @@ def _fetch_source(client: SafeHttpClient, source: dict[str, Any], allowed_domain
     if kind == "html_index":
         return fetch_html_index_articles(client, source, allowed_domains)
     if kind == "public_channel":
-        return fetch_public_channel_articles(client, source, allowed_domains)
+        return fetch_public_channel_articles(client, source, allowed_domains, mode=mode)
     if kind == "bing_news":
         return fetch_bing_news_articles(client, source, allowed_domains)
     raise ValueError(f"نوع منبع ناشناخته: {kind}")
@@ -103,6 +109,9 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     user_agent = config.get("user_agent", f"KouroshYar-Holiday-Bot/{BOT_VERSION}")
     timeout_seconds = int(config.get("timeout_seconds", 20))
     max_response_bytes = int(config.get("max_response_bytes", 2_000_000))
+    retry_attempts = int(config.get("http_retry_attempts", 3))
+    retry_backoff_seconds = float(config.get("http_retry_backoff_seconds", 2.0))
+    retry_max_wait_seconds = float(config.get("http_retry_max_wait_seconds", 30.0))
 
     def fetch_one(source: dict[str, Any]) -> tuple[dict[str, Any], list[Article]]:
         stat: dict[str, Any] = {
@@ -114,15 +123,36 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
             "rechecked": 0, "contentChanged": 0,
             "holidaysPublished": 0, "schedulesPublished": 0, "cancellationsFound": 0, "pending": 0,
         }
+        items: list[Article] = []
+        client: SafeHttpClient | None = None
         try:
-            client = SafeHttpClient(user_agent, timeout_seconds, max_response_bytes)
+            client = SafeHttpClient(
+                user_agent,
+                timeout_seconds,
+                max_response_bytes,
+                retry_attempts=int(source.get("http_retry_attempts", retry_attempts)),
+                retry_backoff_seconds=float(source.get("http_retry_backoff_seconds", retry_backoff_seconds)),
+                retry_max_wait_seconds=float(source.get("http_retry_max_wait_seconds", retry_max_wait_seconds)),
+            )
             items = _fetch_source(client, source, allowed_domains, mode)
             stat["fetched"] = len(items)
-            return stat, items
+        except FetchError as exc:
+            stat["status"] = "deferred" if exc.transient else "error"
+            stat["error"] = str(exc)[:500]
+            stat["errorType"] = exc.category
+            stat["transient"] = exc.transient
+            stat["statusCode"] = exc.status_code
+            stat["attempts"] = exc.attempts
+            stat["failedUrl"] = exc.url
         except Exception as exc:
             stat["status"] = "error"
             stat["error"] = str(exc)[:500]
-            return stat, []
+            stat["errorType"] = type(exc).__name__
+            stat["transient"] = False
+        finally:
+            if client is not None:
+                stat["http"] = client.telemetry
+        return stat, items
 
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="holiday-source") as executor:
         fetched = list(executor.map(fetch_one, active_sources))
@@ -282,9 +312,11 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     work_floor_after = max(revision_floor.working_hours_revision_floor, int(work_payload["revision"]))
     floor_payload = revision_floor_json(holiday_floor_after, work_floor_after, now, f"bot-v{BOT_VERSION}")
     pending = _merge_pending(read_json(root / "data/pending.json", []), verified_pending + dynamic_pending)
-    errors = [stat for stat in source_stats if stat["status"] == "error"]
+    failures = [stat for stat in source_stats if stat["status"] != "ok"]
+    deferred_failures = [stat for stat in failures if stat["status"] == "deferred"]
+    hard_failures = [stat for stat in failures if stat["status"] == "error"]
     empty_sources = [stat for stat in source_stats if stat["status"] == "ok" and stat["fetched"] == 0]
-    critical_failures = [stat for stat in errors if stat.get("critical")]
+    critical_failures = [stat for stat in failures if stat.get("critical")]
     discovery_success = {
         str(stat.get("province"))
         for stat in source_stats
@@ -295,36 +327,81 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     health_config = config.get("health_gate", {})
     minimum_success_ratio = float(health_config.get("minimum_success_ratio", 0.70))
     minimum_province_coverage = int(health_config.get("minimum_province_coverage", 28))
-    success_ratio = (len(source_stats) - len(errors)) / max(1, len(source_stats))
+    success_ratio = (len(source_stats) - len(failures)) / max(1, len(source_stats))
     health_reasons: list[str] = []
+    health_reason_details: list[dict[str, Any]] = []
     if critical_failures:
+        transient = all(bool(item.get("transient")) for item in critical_failures)
         health_reasons.append("یک یا چند منبع حیاتی قابل دریافت نبود.")
+        health_reason_details.append({
+            "code": "critical_source_unavailable",
+            "transient": transient,
+            "sources": [item["source"] for item in critical_failures],
+        })
     if success_ratio < minimum_success_ratio:
+        transient = bool(failures) and all(bool(item.get("transient")) for item in failures)
         health_reasons.append("نسبت موفقیت منابع از حداقل تعیین‌شده کمتر است.")
+        health_reason_details.append({
+            "code": "success_ratio_below_minimum",
+            "transient": transient,
+            "actual": round(success_ratio, 4),
+            "minimum": minimum_success_ratio,
+        })
     if len(discovery_success) < minimum_province_coverage:
+        failed_discovery = [
+            item for item in failures
+            if item.get("coverageRole") == "province_discovery"
+        ]
+        transient = bool(failed_discovery) and all(bool(item.get("transient")) for item in failed_discovery)
         health_reasons.append("پوشش جستجوی استانی از حداقل تعیین‌شده کمتر است.")
+        health_reason_details.append({
+            "code": "province_coverage_below_minimum",
+            "transient": transient,
+            "actual": len(discovery_success),
+            "minimum": minimum_province_coverage,
+        })
     health_gate_ok = not health_reasons
+    gate_result = "passed"
+    if not health_gate_ok:
+        gate_result = (
+            "deferred_no_publish"
+            if health_reason_details and all(bool(item.get("transient")) for item in health_reason_details)
+            else "failed_no_publish"
+        )
+    retry_totals = {
+        key: sum(int(stat.get("http", {}).get(key, 0)) for stat in source_stats)
+        for key in ("requestAttempts", "retryCount", "rateLimitRetries", "transientHttpRetries", "networkRetries")
+    }
+    retry_totals["retryWaitSeconds"] = round(sum(float(stat.get("http", {}).get("retryWaitSeconds", 0.0)) for stat in source_stats), 3)
+    retry_totals["pageDelaySeconds"] = round(sum(float(stat.get("http", {}).get("pageDelaySeconds", 0.0)) for stat in source_stats), 3)
     source_health = {
-        "schema": "kouroshyar-source-health-v2",
+        "schema": "kouroshyar-source-health-v3",
         "botVersion": BOT_VERSION,
         "generatedAt": now,
         "mode": mode,
         "attempted": len(source_stats),
-        "succeeded": len(source_stats) - len(errors),
-        "failed": len(errors),
+        "succeeded": len(source_stats) - len(failures),
+        "failed": len(failures),
+        "deferred": len(deferred_failures),
+        "hardFailed": len(hard_failures),
         "empty": len(empty_sources),
         "successRatio": round(success_ratio, 4),
         "provinceDiscoveryCoverage": len(discovery_success),
         "coveredProvinces": sorted(discovery_success),
         "missingDiscoveryProvinces": sorted(set(PROVINCES) - discovery_success),
         "criticalFailures": critical_failures,
+        "retryTotals": retry_totals,
         "healthGate": {
             "ok": health_gate_ok,
+            "result": gate_result,
             "minimumSuccessRatio": minimum_success_ratio,
             "minimumProvinceCoverage": minimum_province_coverage,
             "reasons": health_reasons,
+            "reasonDetails": health_reason_details,
         },
-        "failures": errors,
+        "failures": failures,
+        "deferredFailures": deferred_failures,
+        "hardFailures": hard_failures,
         "emptySources": [
             {"source": item["source"], "kind": item["kind"], "province": item.get("province")}
             for item in empty_sources
@@ -334,7 +411,8 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "botVersion": BOT_VERSION, "classifierVersion": CLASSIFIER_VERSION, "mode": mode,
         "startedAt": now, "dryRun": dry_run,
         "officialCalendarSourceSha256": calendar_meta.get("sourceSha256"),
-        "sourcesAttempted": len(source_stats), "sourcesSucceeded": len(source_stats) - len(errors), "sourcesFailed": len(errors),
+        "sourcesAttempted": len(source_stats), "sourcesSucceeded": len(source_stats) - len(failures), "sourcesFailed": len(failures),
+        "sourcesDeferred": len(deferred_failures), "sourcesHardFailed": len(hard_failures),
         "sourceStats": source_stats, "articlesFetchedUnique": len(unique_articles), "articlesProcessed": len(selected),
         "dynamicHolidayCandidates": len(dynamic_holidays), "dynamicWorkScheduleCandidates": len(dynamic_schedules),
         "dynamicCancellationCandidates": len(dynamic_cancellations),
@@ -349,6 +427,8 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         },
         "sourceHealth": source_health,
         "healthGatePassed": health_gate_ok,
+        "workflowStatus": gate_result,
+        "publicationAllowed": health_gate_ok,
         "holidayChanged": holiday_changed, "workingHoursChanged": work_changed,
         "publishForced": force_publish,
         "holidayRevision": holiday_payload["revision"], "workingHoursRevision": work_payload["revision"],
@@ -384,7 +464,10 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     write_json(root / "reports/source_health.json", source_health)
     write_json(root / "reports/last_run.json", report)
     if not health_gate_ok:
-        raise RuntimeError("کنترل سلامت منابع ناموفق بود؛ خوراک منتشر نشد: " + " ".join(health_reasons))
+        raise HealthGateError(
+            "کنترل سلامت منابع ناموفق بود؛ خوراک منتشر نشد: " + " ".join(health_reasons),
+            report,
+        )
     if not dry_run:
         write_json(holiday_payload_path, holiday_payload)
         write_json(work_payload_path, work_payload)

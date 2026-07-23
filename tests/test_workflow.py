@@ -23,13 +23,18 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     assert "published-revision-floor.json" in text
     assert 'cron: "17 * * * *"' in text
     assert "reports/source_health.json" in text
+    assert "--report-output reports/workflow_result.json" in text
+    assert "kouroshyar-source-health-v3" in text
+    assert "actions/checkout@v6" in text
+    assert "actions/setup-python@v6" in text
+    assert "actions/upload-artifact@v6" in text
     assert 'health["provinceDiscoveryCoverage"] >= 28' in text
     assert 'health["criticalFailures"]' in text
     assert "holiday_bot/reconcile.py" in text
     push_paths = text.split("paths:", 1)[1].split("permissions:", 1)[0]
     assert "pubspec.yaml" not in push_paths
     assert "data/manual_overrides.json" in push_paths
-    assert "[bot v1.4.0]" in text
+    assert "[bot v1.4.1]" in text
 
 
 def test_no_sensitive_key_files_in_payload():
@@ -81,7 +86,7 @@ def test_revision_floor_matches_confirmed_live_revisions():
     assert isinstance(floor["updatedBy"], str) and floor["updatedBy"].startswith("bot-v")
 
 
-def test_v140_has_official_channel_and_discovery_for_every_province():
+def test_v141_has_official_channel_and_discovery_for_every_province():
     import yaml
     from holiday_bot.constants import PROVINCES
 
@@ -98,6 +103,9 @@ def test_v140_has_official_channel_and_discovery_for_every_province():
     assert official["verified_official"] is True
     assert official["critical"] is True
     assert official["max_pages"] >= 20
+    assert official["current_max_pages"] < official["backfill_max_pages"]
+    assert official["current_page_delay_seconds"] > 0
+    assert config["http_retry_attempts"] >= 1
     assert config["current_lookback_hours"] >= 336
     assert config["content_recheck_hours"] <= 24
     assert config["health_gate"]["minimum_province_coverage"] >= 28
