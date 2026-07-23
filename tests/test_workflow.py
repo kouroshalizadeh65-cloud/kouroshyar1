@@ -23,11 +23,13 @@ def test_single_holiday_workflow_has_strict_validation_publish_and_recovery():
     assert "published-revision-floor.json" in text
     assert 'cron: "17 * * * *"' in text
     assert "reports/source_health.json" in text
+    assert 'health["provinceDiscoveryCoverage"] >= 28' in text
+    assert 'health["criticalFailures"]' in text
     assert "holiday_bot/reconcile.py" in text
     push_paths = text.split("paths:", 1)[1].split("permissions:", 1)[0]
     assert "pubspec.yaml" not in push_paths
     assert "data/manual_overrides.json" in push_paths
-    assert "[bot v1.3.2]" in text
+    assert "[bot v1.4.0]" in text
 
 
 def test_no_sensitive_key_files_in_payload():
@@ -77,3 +79,27 @@ def test_revision_floor_matches_confirmed_live_revisions():
     assert floor["holidayRevisionFloor"] == json.loads((root / "data" / "holidays.payload.json").read_text(encoding="utf-8"))["revision"]
     assert floor["workingHoursRevisionFloor"] == json.loads((root / "data" / "working_hours.payload.json").read_text(encoding="utf-8"))["revision"]
     assert isinstance(floor["updatedBy"], str) and floor["updatedBy"].startswith("bot-v")
+
+
+def test_v140_has_official_channel_and_discovery_for_every_province():
+    import yaml
+    from holiday_bot.constants import PROVINCES
+
+    root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((root / "config" / "sources.yaml").read_text(encoding="utf-8"))
+    discovery = {
+        item.get("province")
+        for item in config["sources"]
+        if item.get("coverage_role") == "province_discovery"
+    }
+    assert discovery == set(PROVINCES)
+    official = next(item for item in config["sources"] if item["name"] == "استانداری ایلام - کانال رسمی ایتا")
+    assert official["kind"] == "public_channel"
+    assert official["verified_official"] is True
+    assert official["critical"] is True
+    assert official["max_pages"] >= 20
+    assert config["current_lookback_hours"] >= 336
+    assert config["content_recheck_hours"] <= 24
+    assert config["health_gate"]["minimum_province_coverage"] >= 28
+    assert "eitaa.com" in config["allowed_domains"]
+    assert "bing.com" in config["allowed_domains"]

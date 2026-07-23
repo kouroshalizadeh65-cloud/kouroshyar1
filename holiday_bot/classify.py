@@ -87,6 +87,8 @@ def _authority(article: Article, text: str, province: str | None) -> str:
         return f"استانداری {province}"
     if province and "فرمانداری" in text:
         return f"فرمانداری شهرستان اعلام‌شده در استان {province}"
+    if article.source_kind == "official_channel":
+        return article.source_name
     if article.source_kind.startswith("irna") and province:
         return f"مرجع رسمی اعلام‌شده در خبر ایرنا - استان {province}"
     if "پایگاه اطلاع رسانی دولت" in text or "dolat.ir" in article.article_url:
@@ -113,8 +115,20 @@ def _base_scope(text: str, article: Article, province: str | None) -> tuple[str 
 
 
 def _has_official_authority(article: Article, text: str) -> bool:
+    if article.source_kind == "official_channel":
+        return True
     if "dolat.ir" in article.article_url:
         return True
+    if article.source_kind == "news_search":
+        has_authority = any(
+            term in text
+            for term in ("استانداری", "فرمانداری", "مدیریت بحران", "روابط عمومی", "سازمان اداری و استخدامی")
+        )
+        has_attribution = any(
+            term in text
+            for term in ("اعلام کرد", "اعلام شد", "در اطلاعیه", "براساس اطلاعیه", "بر اساس اطلاعیه", "بنا بر تصمیم", "مصوب شد")
+        )
+        return has_authority and has_attribution
     return any(term in text for term in OFFICIAL_AUTHORITY_TERMS)
 
 
@@ -142,6 +156,7 @@ def _included(text: str) -> list[str]:
 def _clean_county_name(value: str) -> str | None:
     value = normalize_text(value)
     value = re.sub(r"\s*[:：]\s*(?:یک|دو|سه|چهار|پنج|\d{1,2})\s*$", "", value)
+    value = re.sub(r"\s+(?:یک|دو|سه|چهار|پنج|\d{1,2})\s*$", "", value)
     value = re.sub(r"^(?:شهرستان|شهر)\s+", "", value).strip(" ،,:؛-")
     value = re.sub(
         r"\s+(?:در|روز|فردا|امروز|تعطیل|فعالیت|ادارات|دستگاه|بانک|شرکت|ساعت|با|به|مشمول|مستثنی|پایان|آغاز|کاهش|افزایش)\b.*$",

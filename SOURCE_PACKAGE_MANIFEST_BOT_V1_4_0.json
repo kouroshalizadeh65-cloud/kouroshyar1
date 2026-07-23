@@ -1,0 +1,42 @@
+{
+  "schema": "kouroshyar-source-package-manifest-v1",
+  "appVersion": "3.6.59+131",
+  "botVersion": "1.4.0",
+  "packageId": "com.example.kouroshyar",
+  "baseArchive": "kouroshyar1-main.zip",
+  "baseRevisionFloor": {
+    "holiday": 7,
+    "workingHours": 10
+  },
+  "appSourceChanged": false,
+  "apkIncluded": false,
+  "pubspecLockIncluded": false,
+  "sensitiveFilesIncluded": false,
+  "pythonTestsPassed": 41,
+  "configuredSources": 69,
+  "currentModeSources": 68,
+  "provinceDiscoveryCoverage": 31,
+  "changedPaths": [
+    ".github/workflows/holiday-bot.yml",
+    "CHANGELOG_HOLIDAY_BOT.md",
+    "HOLIDAY_BOT_VERSION",
+    "README.md",
+    "README_HOLIDAY_BOT.md",
+    "config/sources.yaml",
+    "docs/DATA_RULES_FA.md",
+    "holiday_bot/classify.py",
+    "holiday_bot/cli.py",
+    "holiday_bot/config.py",
+    "holiday_bot/constants.py",
+    "holiday_bot/engine.py",
+    "holiday_bot/extract.py",
+    "tests/test_engine_revision_recovery.py",
+    "tests/test_public_discovery.py",
+    "tests/test_source_health_gate.py",
+    "tests/test_workflow.py",
+    "SOURCE_VALIDATION_BOT_V1_4_0.md",
+    "PACKAGE_VALIDATION_REPORT_BOT_V1_4_0.md",
+    "SOURCE_PACKAGE_MANIFEST_BOT_V1_4_0.json",
+    "PACKAGE_FILE_HASHES_BOT_V1_4_0.json"
+  ]
+}

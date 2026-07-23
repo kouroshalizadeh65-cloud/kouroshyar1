@@ -1,12 +1,22 @@
 expected_public_key_b64: sVcSFN9B7pHssUEcDqN/ioFHEOK0F6sowwzEpZXFx18=
-user_agent: KouroshYar-Holiday-Bot/1.3.2 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
+user_agent: KouroshYar-Holiday-Bot/1.4.0 (+https://github.com/kouroshalizadeh65-cloud/kouroshyar1)
 timeout_seconds: 25
 max_response_bytes: 2500000
-current_lookback_hours: 240
+current_lookback_hours: 336
 allowed_domains:
 - irna.ir
 - dolat.ir
 - portal-il.ir
+- eitaa.com
+- bing.com
+- gov.ir
+- moi.ir
+- isna.ir
+- ilna.ir
+- mehrnews.com
+- tasnimnews.com
+- yjc.ir
+- farsnews.ir
 sources:
 - name: پایگاه اطلاع‌رسانی دولت - بخشنامه‌ها
   kind: html_index
@@ -28,6 +38,7 @@ sources:
   modes:
   - current
   - backfill_1405
+  critical: true
 - name: استانداری ایلام - اطلاعیه‌ها و بخشنامه‌ها
   kind: html_index
   url: https://www.portal-il.ir/archives/arshive1
@@ -35,6 +46,38 @@ sources:
   province: ایلام
   candidate_terms: *id001
   max_items: 120
+  modes:
+  - current
+  - backfill_1405
+  critical: true
+  verified_official: true
+  coverage_role: official_direct
+- name: استانداری ایلام - کانال رسمی ایتا
+  kind: public_channel
+  url: https://eitaa.com/ostandari_ilam
+  province: ایلام
+  verified_official: true
+  critical: true
+  coverage_role: official_direct
+  candidate_terms: &id002
+  - تعطیل
+  - ساعت کاری
+  - ساعات کاری
+  - پایان کار
+  - پایان ساعت کاری
+  - آغاز به کار
+  - شروع به کار
+  - دورکار
+  - دورکاری
+  - کاهش ساعت
+  - تعجیل
+  - با تاخیر
+  - با تأخیر
+  - غیرحضوری
+  - لغو تعطیلی
+  - اصلاحیه
+  max_pages: 24
+  max_items: 500
   modes:
   - current
   - backfill_1405
@@ -322,3 +365,318 @@ sources:
   max_pages: 20
   modes:
   - backfill_1405
+- name: جستجوی تکمیلی خبرهای رسمی - آذربایجان شرقی
+  kind: bing_news
+  province: آذربایجان شرقی
+  coverage_role: province_discovery
+  query: '"آذربایجان شرقی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - آذربایجان غربی
+  kind: bing_news
+  province: آذربایجان غربی
+  coverage_role: province_discovery
+  query: '"آذربایجان غربی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - اردبیل
+  kind: bing_news
+  province: اردبیل
+  coverage_role: province_discovery
+  query: '"اردبیل" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - اصفهان
+  kind: bing_news
+  province: اصفهان
+  coverage_role: province_discovery
+  query: '"اصفهان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - البرز
+  kind: bing_news
+  province: البرز
+  coverage_role: province_discovery
+  query: '"البرز" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - ایلام
+  kind: bing_news
+  province: ایلام
+  coverage_role: province_discovery
+  query: '"ایلام" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - بوشهر
+  kind: bing_news
+  province: بوشهر
+  coverage_role: province_discovery
+  query: '"بوشهر" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - تهران
+  kind: bing_news
+  province: تهران
+  coverage_role: province_discovery
+  query: '"تهران" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - چهارمحال و بختیاری
+  kind: bing_news
+  province: چهارمحال و بختیاری
+  coverage_role: province_discovery
+  query: '"چهارمحال و بختیاری" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR
+    "دورکاری ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - خراسان جنوبی
+  kind: bing_news
+  province: خراسان جنوبی
+  coverage_role: province_discovery
+  query: '"خراسان جنوبی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - خراسان رضوی
+  kind: bing_news
+  province: خراسان رضوی
+  coverage_role: province_discovery
+  query: '"خراسان رضوی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - خراسان شمالی
+  kind: bing_news
+  province: خراسان شمالی
+  coverage_role: province_discovery
+  query: '"خراسان شمالی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - خوزستان
+  kind: bing_news
+  province: خوزستان
+  coverage_role: province_discovery
+  query: '"خوزستان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - زنجان
+  kind: bing_news
+  province: زنجان
+  coverage_role: province_discovery
+  query: '"زنجان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - سمنان
+  kind: bing_news
+  province: سمنان
+  coverage_role: province_discovery
+  query: '"سمنان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - سیستان و بلوچستان
+  kind: bing_news
+  province: سیستان و بلوچستان
+  coverage_role: province_discovery
+  query: '"سیستان و بلوچستان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR
+    "دورکاری ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - فارس
+  kind: bing_news
+  province: فارس
+  coverage_role: province_discovery
+  query: '"فارس" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - قزوین
+  kind: bing_news
+  province: قزوین
+  coverage_role: province_discovery
+  query: '"قزوین" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - قم
+  kind: bing_news
+  province: قم
+  coverage_role: province_discovery
+  query: '"قم" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - کردستان
+  kind: bing_news
+  province: کردستان
+  coverage_role: province_discovery
+  query: '"کردستان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - کرمان
+  kind: bing_news
+  province: کرمان
+  coverage_role: province_discovery
+  query: '"کرمان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - کرمانشاه
+  kind: bing_news
+  province: کرمانشاه
+  coverage_role: province_discovery
+  query: '"کرمانشاه" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - کهگیلویه و بویراحمد
+  kind: bing_news
+  province: کهگیلویه و بویراحمد
+  coverage_role: province_discovery
+  query: '"کهگیلویه و بویراحمد" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری"
+    OR "دورکاری ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - گلستان
+  kind: bing_news
+  province: گلستان
+  coverage_role: province_discovery
+  query: '"گلستان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - گیلان
+  kind: bing_news
+  province: گیلان
+  coverage_role: province_discovery
+  query: '"گیلان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - لرستان
+  kind: bing_news
+  province: لرستان
+  coverage_role: province_discovery
+  query: '"لرستان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - مازندران
+  kind: bing_news
+  province: مازندران
+  coverage_role: province_discovery
+  query: '"مازندران" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - مرکزی
+  kind: bing_news
+  province: مرکزی
+  coverage_role: province_discovery
+  query: '"مرکزی" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - هرمزگان
+  kind: bing_news
+  province: هرمزگان
+  coverage_role: province_discovery
+  query: '"هرمزگان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری
+    ادارات" OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - همدان
+  kind: bing_news
+  province: همدان
+  coverage_role: province_discovery
+  query: '"همدان" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+- name: جستجوی تکمیلی خبرهای رسمی - یزد
+  kind: bing_news
+  province: یزد
+  coverage_role: province_discovery
+  query: '"یزد" ("تعطیلی ادارات" OR "ساعت کاری ادارات" OR "کاهش ساعت اداری" OR "تعجیل در پایان ساعت کاری" OR "دورکاری ادارات"
+    OR "آغاز به کار ادارات") (استانداری OR فرمانداری OR مدیریت بحران OR روابط عمومی)'
+  candidate_terms: *id002
+  max_items: 60
+  modes:
+  - current
+content_recheck_hours: 24
+health_gate:
+  minimum_success_ratio: 0.7
+  minimum_province_coverage: 28
+fetch_workers: 8

@@ -40,8 +40,38 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "doctor":
         config = load_config(args.config)
-        counts = {mode: sum(1 for s in config["sources"] if mode in s.get("modes", ["current"])) for mode in ("current", "backfill_1405")}
-        print(json.dumps({"ok": True, "botVersion": BOT_VERSION, "sources": len(config["sources"]), "sourcesByMode": counts}, ensure_ascii=False, indent=2))
+        sources = config["sources"]
+        counts = {
+            mode: sum(1 for source in sources if mode in source.get("modes", ["current"]))
+            for mode in ("current", "backfill_1405")
+        }
+        by_kind: dict[str, int] = {}
+        for source in sources:
+            kind = str(source["kind"])
+            by_kind[kind] = by_kind.get(kind, 0) + 1
+        discovery_provinces = sorted({
+            str(source.get("province"))
+            for source in sources
+            if source.get("coverage_role") == "province_discovery" and source.get("province")
+        })
+        official_channels = [
+            source["name"]
+            for source in sources
+            if source.get("verified_official") and source.get("kind") == "public_channel"
+        ]
+        print(json.dumps({
+            "ok": True,
+            "botVersion": BOT_VERSION,
+            "sources": len(sources),
+            "sourcesByMode": counts,
+            "sourcesByKind": by_kind,
+            "provinceDiscoveryCoverage": len(discovery_provinces),
+            "officialPublicChannels": official_channels,
+            "currentLookbackHours": config.get("current_lookback_hours"),
+            "contentRecheckHours": config.get("content_recheck_hours"),
+            "healthGate": config.get("health_gate", {}),
+            "fetchWorkers": config.get("fetch_workers", 8),
+        }, ensure_ascii=False, indent=2))
     elif args.command == "verify":
         payload = verify_envelope(read_json(args.feed, {}), args.public_key)
         print(json.dumps({"ok": True, "format": payload.get("format"), "revision": payload.get("revision")}, ensure_ascii=False, indent=2))

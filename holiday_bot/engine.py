@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from .classify import classify_article
 from .config import load_config
-from .constants import BOT_VERSION, CLASSIFIER_VERSION, HOLIDAY_FEED_FORMAT, WORK_SCHEDULE_FEED_FORMAT
+from .constants import BOT_VERSION, CLASSIFIER_VERSION, HOLIDAY_FEED_FORMAT, PROVINCES, WORK_SCHEDULE_FEED_FORMAT
 from .extract import (
-    SafeHttpClient, article_fingerprint, fetch_html_index_articles, fetch_irna_archive_articles,
-    fetch_irna_tag_articles, fetch_rss_articles,
+    SafeHttpClient, article_content_hash, article_fingerprint, fetch_bing_news_articles,
+    fetch_html_index_articles, fetch_irna_archive_articles, fetch_irna_tag_articles,
+    fetch_public_channel_articles, fetch_rss_articles,
 )
 from .models import Article, CancellationDirective, PendingCandidate
 from .reconcile import apply_cancellations, merge_semantic_events
@@ -74,6 +76,10 @@ def _fetch_source(client: SafeHttpClient, source: dict[str, Any], allowed_domain
         return fetch_irna_archive_articles(client, source, allowed_domains, year=1405)
     if kind == "html_index":
         return fetch_html_index_articles(client, source, allowed_domains)
+    if kind == "public_channel":
+        return fetch_public_channel_articles(client, source, allowed_domains)
+    if kind == "bing_news":
+        return fetch_bing_news_articles(client, source, allowed_domains)
     raise ValueError(f"نوع منبع ناشناخته: {kind}")
 
 
@@ -89,49 +95,79 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     verified_holidays, verified_schedules, verified_pending = load_verified_notices(root)
 
     allowed_domains = set(config.get("allowed_domains", []))
-    client = SafeHttpClient(config.get("user_agent", f"KouroshYar-Holiday-Bot/{BOT_VERSION}"),
-                            int(config.get("timeout_seconds", 20)), int(config.get("max_response_bytes", 2_000_000)))
-    source_stats: list[dict[str, Any]] = []
-    all_articles: list[Article] = []
-    for source in config["sources"]:
-        if mode not in source.get("modes", ["current"]):
-            continue
+    active_sources = [
+        source for source in config["sources"]
+        if mode in source.get("modes", ["current"])
+    ]
+    workers = max(1, min(int(config.get("fetch_workers", 8)), 16))
+    user_agent = config.get("user_agent", f"KouroshYar-Holiday-Bot/{BOT_VERSION}")
+    timeout_seconds = int(config.get("timeout_seconds", 20))
+    max_response_bytes = int(config.get("max_response_bytes", 2_000_000))
+
+    def fetch_one(source: dict[str, Any]) -> tuple[dict[str, Any], list[Article]]:
         stat: dict[str, Any] = {
             "source": source["name"], "kind": source["kind"], "status": "ok",
+            "province": source.get("province"),
+            "coverageRole": source.get("coverage_role"),
+            "critical": bool(source.get("critical", False)),
             "fetched": 0, "selected": 0, "skippedOld": 0, "skippedSeen": 0,
+            "rechecked": 0, "contentChanged": 0,
             "holidaysPublished": 0, "schedulesPublished": 0, "cancellationsFound": 0, "pending": 0,
         }
         try:
+            client = SafeHttpClient(user_agent, timeout_seconds, max_response_bytes)
             items = _fetch_source(client, source, allowed_domains, mode)
             stat["fetched"] = len(items)
-            all_articles.extend(items)
+            return stat, items
         except Exception as exc:
             stat["status"] = "error"
             stat["error"] = str(exc)[:500]
-        source_stats.append(stat)
+            return stat, []
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="holiday-source") as executor:
+        fetched = list(executor.map(fetch_one, active_sources))
+    source_stats = [stat for stat, _items in fetched]
+    all_articles = [article for _stat, items in fetched for article in items]
 
     unique_articles = {article.article_url: article for article in all_articles}
     seen_path = root / "data/seen.json"
     seen = read_json(seen_path, {"schema": "kouroshyar-seen-v2", "articles": {}})
     seen_articles: dict[str, Any] = seen.setdefault("articles", {})
-    cutoff = started - timedelta(hours=int(config.get("current_lookback_hours", 168)))
+    cutoff = started - timedelta(hours=int(config.get("current_lookback_hours", 336)))
+    recheck_after = timedelta(hours=int(config.get("content_recheck_hours", 24)))
     stats_by_source = {stat["source"]: stat for stat in source_stats}
     selected: list[Article] = []
     for article in unique_articles.values():
         fingerprint = article_fingerprint(article)
+        content_hash = article_content_hash(article)
         previous = seen_articles.get(fingerprint, {})
         stat = stats_by_source.get(article.source_name)
         if mode == "current" and article.published_at < cutoff:
             if stat is not None:
                 stat["skippedOld"] += 1
             continue
-        if previous.get("classifierVersion") == CLASSIFIER_VERSION:
+        same_classifier = previous.get("classifierVersion") == CLASSIFIER_VERSION
+        same_content = previous.get("contentHash") == content_hash
+        processed_at = None
+        try:
+            raw_processed = str(previous.get("processedAt", "")).replace("Z", "+00:00")
+            processed_at = datetime.fromisoformat(raw_processed) if raw_processed else None
+            if processed_at and processed_at.tzinfo is None:
+                processed_at = processed_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            processed_at = None
+        recently_processed = bool(processed_at and started - processed_at.astimezone(timezone.utc) < recheck_after)
+        if same_classifier and same_content and recently_processed:
             if stat is not None:
                 stat["skippedSeen"] += 1
             continue
         selected.append(article)
         if stat is not None:
             stat["selected"] += 1
+            if same_classifier and same_content:
+                stat["rechecked"] += 1
+            elif previous and not same_content:
+                stat["contentChanged"] += 1
 
     dynamic_holidays: list[dict[str, Any]] = []
     dynamic_schedules: list[dict[str, Any]] = []
@@ -153,6 +189,7 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
             "url": article.article_url, "title": article.title,
             "publishedAt": article.published_at.astimezone(timezone.utc).isoformat(),
             "processedAt": started.isoformat(), "classifierVersion": CLASSIFIER_VERSION,
+            "contentHash": article_content_hash(article),
             "holidays": len(classified.holidays), "schedules": len(classified.work_schedules),
             "cancellations": len(classified.cancellations), "pending": len(classified.pending),
         }
@@ -247,8 +284,28 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     pending = _merge_pending(read_json(root / "data/pending.json", []), verified_pending + dynamic_pending)
     errors = [stat for stat in source_stats if stat["status"] == "error"]
     empty_sources = [stat for stat in source_stats if stat["status"] == "ok" and stat["fetched"] == 0]
+    critical_failures = [stat for stat in errors if stat.get("critical")]
+    discovery_success = {
+        str(stat.get("province"))
+        for stat in source_stats
+        if stat.get("coverageRole") == "province_discovery"
+        and stat.get("province") in PROVINCES
+        and stat["status"] == "ok"
+    }
+    health_config = config.get("health_gate", {})
+    minimum_success_ratio = float(health_config.get("minimum_success_ratio", 0.70))
+    minimum_province_coverage = int(health_config.get("minimum_province_coverage", 28))
+    success_ratio = (len(source_stats) - len(errors)) / max(1, len(source_stats))
+    health_reasons: list[str] = []
+    if critical_failures:
+        health_reasons.append("یک یا چند منبع حیاتی قابل دریافت نبود.")
+    if success_ratio < minimum_success_ratio:
+        health_reasons.append("نسبت موفقیت منابع از حداقل تعیین‌شده کمتر است.")
+    if len(discovery_success) < minimum_province_coverage:
+        health_reasons.append("پوشش جستجوی استانی از حداقل تعیین‌شده کمتر است.")
+    health_gate_ok = not health_reasons
     source_health = {
-        "schema": "kouroshyar-source-health-v1",
+        "schema": "kouroshyar-source-health-v2",
         "botVersion": BOT_VERSION,
         "generatedAt": now,
         "mode": mode,
@@ -256,9 +313,21 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         "succeeded": len(source_stats) - len(errors),
         "failed": len(errors),
         "empty": len(empty_sources),
+        "successRatio": round(success_ratio, 4),
+        "provinceDiscoveryCoverage": len(discovery_success),
+        "coveredProvinces": sorted(discovery_success),
+        "missingDiscoveryProvinces": sorted(set(PROVINCES) - discovery_success),
+        "criticalFailures": critical_failures,
+        "healthGate": {
+            "ok": health_gate_ok,
+            "minimumSuccessRatio": minimum_success_ratio,
+            "minimumProvinceCoverage": minimum_province_coverage,
+            "reasons": health_reasons,
+        },
         "failures": errors,
         "emptySources": [
-            {"source": item["source"], "kind": item["kind"]} for item in empty_sources
+            {"source": item["source"], "kind": item["kind"], "province": item.get("province")}
+            for item in empty_sources
         ],
     }
     report = {
@@ -279,6 +348,7 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
             "unmatchedCancellations": len(unmatched_cancellations),
         },
         "sourceHealth": source_health,
+        "healthGatePassed": health_gate_ok,
         "holidayChanged": holiday_changed, "workingHoursChanged": work_changed,
         "publishForced": force_publish,
         "holidayRevision": holiday_payload["revision"], "workingHoursRevision": work_payload["revision"],
@@ -312,6 +382,9 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
     }
 
     write_json(root / "reports/source_health.json", source_health)
+    write_json(root / "reports/last_run.json", report)
+    if not health_gate_ok:
+        raise RuntimeError("کنترل سلامت منابع ناموفق بود؛ خوراک منتشر نشد: " + " ".join(health_reasons))
     if not dry_run:
         write_json(holiday_payload_path, holiday_payload)
         write_json(work_payload_path, work_payload)
@@ -320,5 +393,4 @@ def run_update(root: Path, config_path: Path, private_key_path: Path, mode: str,
         write_json(revision_floor_path, floor_payload)
         write_json(seen_path, seen)
         write_json(root / "data/pending.json", pending)
-        write_json(root / "reports/last_run.json", report)
     return report

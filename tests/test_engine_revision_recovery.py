@@ -38,9 +38,9 @@ def test_engine_recovers_higher_git_revision_and_publishes_newer_files(tmp_path:
     report = engine.run_update(repo, repo / "config/sources.yaml", repo / "unused.pem", "current", False)
 
     assert report["holidayRevision"] == 8
-    assert report["workingHoursRevision"] == 10
+    assert report["workingHoursRevision"] == 11
     assert report["holidayRecovery"]["highestKnownRevision"] == 7
-    assert report["workingHoursRecovery"]["highestKnownRevision"] == 9
+    assert report["workingHoursRecovery"]["highestKnownRevision"] == 10
     assert report["validation"]["holidays"] >= 28
     assert report["validation"]["periodicSchedules"] == 1
     assert report["validation"]["incidentSchedules"] >= 1

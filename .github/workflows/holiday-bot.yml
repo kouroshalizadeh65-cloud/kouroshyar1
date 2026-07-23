@@ -78,7 +78,7 @@ jobs:
           for file in "${required[@]}"; do
             test -f "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.3.2"
+          test "$(cat HOLIDAY_BOT_VERSION | tr -d '\r\n ')" = "1.4.0"
           if find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.jks' -o -name '*.keystore' -o -name 'key.properties' \) -print -quit | grep -q .; then
             echo "Sensitive signing file exists in repository."
             exit 1
@@ -164,9 +164,14 @@ jobs:
           assert floor["holidayAfter"] == report["holidayRevision"], report
           assert floor["workingHoursAfter"] == report["workingHoursRevision"], report
           health = report["sourceHealth"]
+          assert report["healthGatePassed"] is True, report
+          assert health["schema"] == "kouroshyar-source-health-v2", report
           assert health["attempted"] == report["sourcesAttempted"], report
           assert health["succeeded"] == report["sourcesSucceeded"], report
-          assert health["succeeded"] >= 1, report
+          assert health["successRatio"] >= 0.70, report
+          assert health["provinceDiscoveryCoverage"] >= 28, report
+          assert health["healthGate"]["ok"] is True, report
+          assert not health["criticalFailures"], report
           assert Path("reports/source_health.json").is_file(), report
           print(json.dumps({"ok": True, "validation": validation, "holidayRevision": report["holidayRevision"], "workingHoursRevision": report["workingHoursRevision"], "revisionFloor": floor, "sourceHealth": health, "reconciliation": report["reconciliation"]}, ensure_ascii=False, indent=2))
           PY
@@ -203,7 +208,7 @@ jobs:
             echo "No feed or state changes to commit."
             exit 0
           fi
-          git commit -m "chore: update signed holiday feeds [bot v1.3.2]"
+          git commit -m "chore: update signed holiday feeds [bot v1.4.0]"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push origin HEAD:main; then

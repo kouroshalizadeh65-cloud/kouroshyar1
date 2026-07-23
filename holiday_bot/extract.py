@@ -4,11 +4,11 @@ import hashlib
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from urllib.parse import parse_qs, quote_plus, unquote, urljoin, urlparse
 from zoneinfo import ZoneInfo
-from urllib.parse import quote_plus, urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from dateutil import parser as date_parser
 
 from .constants import PERSIAN_MONTHS, TEHRAN_TZ
@@ -19,6 +19,13 @@ from .text import normalize_text
 
 class FetchError(RuntimeError):
     pass
+
+
+def _domain_allowed(hostname: str | None, allowed_domains: set[str]) -> bool:
+    if not hostname:
+        return False
+    hostname = hostname.lower().strip(".")
+    return any(hostname == d or hostname.endswith(f".{d}") for d in allowed_domains)
 
 
 class SafeHttpClient:
@@ -35,13 +42,11 @@ class SafeHttpClient:
         parsed = urlparse(url)
         if parsed.scheme != "https" or not parsed.hostname:
             raise FetchError(f"only HTTPS sources are allowed: {url}")
-        if not any(parsed.hostname == d or parsed.hostname.endswith(f".{d}") for d in allowed_domains):
+        if not _domain_allowed(parsed.hostname, allowed_domains):
             raise FetchError(f"source domain is not allowlisted: {parsed.hostname}")
         response = self.session.get(url, timeout=self.timeout_seconds, allow_redirects=True, stream=True)
         final = urlparse(response.url)
-        if final.scheme != "https" or not final.hostname or not any(
-            final.hostname == d or final.hostname.endswith(f".{d}") for d in allowed_domains
-        ):
+        if final.scheme != "https" or not _domain_allowed(final.hostname, allowed_domains):
             raise FetchError(f"redirect left allowlisted domains: {response.url}")
         response.raise_for_status()
         content = bytearray()
@@ -60,7 +65,6 @@ def parse_published(value: str | None) -> datetime:
     if not value:
         return datetime.now(timezone.utc)
     normalized = normalize_text(value)
-    # IRNA sometimes exposes Jalali text instead of ISO metadata.
     match = re.search(r"(1[34]\d{2})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?", normalized)
     if match:
         y, m, d = (int(match.group(i)) for i in (1, 2, 3))
@@ -158,15 +162,22 @@ def _parse_rss_items(content: bytes) -> list[dict[str, str]]:
                 link = (child.attrib.get("href") or child.text or "").strip()
                 if link:
                     break
-        items.append({"title": _rss_text(node, ("title",)), "link": link,
-                      "summary": _rss_text(node, ("description", "summary", "content")),
-                      "published": _rss_text(node, ("pubdate", "published", "updated", "date"))})
+        items.append({
+            "title": _rss_text(node, ("title",)),
+            "link": link,
+            "summary": _rss_text(node, ("description", "summary", "content")),
+            "published": _rss_text(node, ("pubdate", "published", "updated", "date")),
+        })
     return items
 
 
 def _candidate(text: str, terms: tuple[str, ...]) -> bool:
     normalized = normalize_text(text)
     return any(term in normalized for term in terms)
+
+
+def _summary_text(value: str) -> str:
+    return normalize_text(BeautifulSoup(value or "", "html.parser").get_text(" ", strip=True))
 
 
 def fetch_rss_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str]) -> list[Article]:
@@ -178,10 +189,11 @@ def fetch_rss_articles(client: SafeHttpClient, source: dict, allowed_domains: se
     terms = tuple(source.get("candidate_terms", ("تعطیل", "ساعت کاری", "ساعات کاری", "پایان کار", "آغاز به کار", "دورکار", "کاهش ساعت", "تعجیل")))
     result: list[Article] = []
     for entry in entries[: int(source.get("max_items", 80))]:
-        link, title = str(entry.get("link", "")).strip(), normalize_text(entry.get("title", ""))
-        if not link or not title or not _candidate(f"{title} {entry.get('summary', '')}", terms):
+        link = str(entry.get("link", "")).strip()
+        title = normalize_text(entry.get("title", ""))
+        body = _summary_text(entry.get("summary", ""))
+        if not link or not title or not _candidate(f"{title} {body}", terms):
             continue
-        body = normalize_text(entry.get("summary", ""))
         published = parse_published(entry.get("published"))
         try:
             full = _article_from_url(client, source, link, allowed_domains)
@@ -269,5 +281,203 @@ def fetch_html_index_articles(client: SafeHttpClient, source: dict, allowed_doma
     return result
 
 
+def _message_permalink(node: Tag, channel_url: str) -> str | None:
+    channel_path = urlparse(channel_url).path.rstrip("/")
+    pattern = re.compile(rf"{re.escape(channel_path)}/(?P<id>\d+)(?:$|[?#])")
+    for anchor in node.find_all("a", href=True):
+        url = urljoin(channel_url, anchor["href"]).split("#", 1)[0]
+        if pattern.search(urlparse(url).path):
+            return url
+    data_post = node.get("data-post") or node.get("data-message-id")
+    if data_post:
+        raw = str(data_post).strip().lstrip("/")
+        if "/" in raw:
+            return f"https://eitaa.com/{raw}"
+        return f"{channel_url.rstrip('/')}/{raw}"
+    return None
+
+
+def _message_nodes(soup: BeautifulSoup, channel_url: str) -> list[Tag]:
+    selectors = (
+        ".etme_widget_message_wrap",
+        ".etme_widget_message",
+        ".tgme_widget_message_wrap",
+        ".tgme_widget_message",
+        "article[data-post]",
+        "div[data-post]",
+    )
+    nodes: list[Tag] = []
+    for selector in selectors:
+        nodes.extend(node for node in soup.select(selector) if isinstance(node, Tag))
+    if nodes:
+        return list(dict.fromkeys(nodes))
+
+    channel_path = urlparse(channel_url).path.rstrip("/")
+    pattern = re.compile(rf"{re.escape(channel_path)}/\d+$")
+    for anchor in soup.find_all("a", href=True):
+        absolute = urljoin(channel_url, anchor["href"])
+        if not pattern.search(urlparse(absolute).path):
+            continue
+        parent = anchor.find_parent(["article", "section", "div"])
+        if isinstance(parent, Tag):
+            nodes.append(parent)
+    return list(dict.fromkeys(nodes))
+
+
+def _message_text(node: Tag) -> str:
+    selectors = (
+        ".etme_widget_message_text",
+        ".tgme_widget_message_text",
+        ".message_text",
+        ".post-text",
+        '[data-role="message-text"]',
+    )
+    for selector in selectors:
+        part = node.select_one(selector)
+        if part:
+            text = normalize_text(part.get_text(" ", strip=True))
+            if text:
+                return text
+    return normalize_text(node.get_text(" ", strip=True))
+
+
+def _message_published(node: Tag, body: str) -> datetime:
+    time_node = node.select_one("time")
+    if time_node:
+        raw = time_node.get("datetime") or time_node.get("title") or time_node.get_text(" ", strip=True)
+        if raw:
+            return parse_published(str(raw))
+    for attr in ("data-time", "data-date", "data-published"):
+        raw = node.get(attr)
+        if raw:
+            return parse_published(str(raw))
+    return parse_published(body)
+
+
+def _message_id(url: str) -> int | None:
+    match = re.search(r"/(\d+)(?:$|[?#])", url)
+    return int(match.group(1)) if match else None
+
+
+def fetch_public_channel_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str]) -> list[Article]:
+    channel_url = str(source["url"]).rstrip("/")
+    terms = tuple(source.get("candidate_terms", ("تعطیل", "ساعت کاری", "ساعات کاری", "پایان کار", "آغاز به کار", "دورکار", "کاهش ساعت", "تعجیل")))
+    max_pages = max(1, min(int(source.get("max_pages", 12)), 40))
+    max_items = max(1, min(int(source.get("max_items", 300)), 1000))
+    page_url = channel_url
+    result: list[Article] = []
+    seen_urls: set[str] = set()
+    parsed_any_message = False
+
+    for _ in range(max_pages):
+        response = client.get(page_url, allowed_domains)
+        soup = BeautifulSoup(response.text, "html.parser")
+        nodes = _message_nodes(soup, channel_url)
+        if not nodes:
+            if not parsed_any_message:
+                raise FetchError(f"public channel markup is not recognized: {channel_url}")
+            break
+        parsed_any_message = True
+        page_ids: list[int] = []
+        for node in nodes:
+            permalink = _message_permalink(node, channel_url)
+            if not permalink:
+                continue
+            message_id = _message_id(permalink)
+            if message_id is not None:
+                page_ids.append(message_id)
+            if permalink in seen_urls:
+                continue
+            seen_urls.add(permalink)
+            body = _message_text(node)
+            if not body or not _candidate(body, terms):
+                continue
+            title = body.split(" | ", 1)[0].strip()
+            if len(title) > 180:
+                title = title[:177].rstrip() + "..."
+            result.append(Article(
+                source_name=source["name"],
+                source_kind="official_channel",
+                source_url=channel_url,
+                article_url=permalink,
+                title=title or source["name"],
+                body=body[:30_000],
+                published_at=_message_published(node, body),
+                province_hint=source.get("province"),
+            ))
+            if len(result) >= max_items:
+                return result
+        if not page_ids:
+            break
+        oldest = min(page_ids)
+        next_url = f"{channel_url}?before={oldest}"
+        if next_url == page_url:
+            break
+        page_url = next_url
+    return result
+
+
+def _unwrap_bing_link(link: str) -> str:
+    parsed = urlparse(link)
+    if not parsed.hostname or not parsed.hostname.endswith("bing.com"):
+        return link
+    params = parse_qs(parsed.query)
+    for key in ("url", "u", "r"):
+        values = params.get(key)
+        if not values:
+            continue
+        candidate = unquote(values[0])
+        if candidate.startswith("a1"):
+            candidate = candidate[2:]
+        if candidate.startswith("https://"):
+            return candidate
+    return link
+
+
+def fetch_bing_news_articles(client: SafeHttpClient, source: dict, allowed_domains: set[str]) -> list[Article]:
+    query = str(source.get("query", "")).strip()
+    if not query:
+        province = str(source.get("province", "")).strip()
+        query = f'"{province}" (تعطیلی ادارات OR ساعت کاری ادارات OR کاهش ساعت اداری OR دورکاری ادارات)'
+    url = f"https://www.bing.com/news/search?q={quote_plus(query)}&format=rss&setlang=fa"
+    response = client.get(url, allowed_domains)
+    try:
+        entries = _parse_rss_items(response.content)
+    except ET.ParseError as exc:
+        raise FetchError(f"invalid Bing News RSS/XML: {url}") from exc
+    terms = tuple(source.get("candidate_terms", ("تعطیل", "ساعت کاری", "ساعات کاری", "پایان کار", "آغاز به کار", "دورکار", "کاهش ساعت", "تعجیل")))
+    result: list[Article] = []
+    for entry in entries[: int(source.get("max_items", 50))]:
+        title = normalize_text(entry.get("title", ""))
+        body = _summary_text(entry.get("summary", ""))
+        link = _unwrap_bing_link(str(entry.get("link", "")).strip())
+        if not title or not link or not _candidate(f"{title} {body}", terms):
+            continue
+        published = parse_published(entry.get("published"))
+        try:
+            full = _article_from_url(client, source, link, allowed_domains)
+            if full:
+                result.append(full)
+                continue
+        except Exception:
+            pass
+        result.append(Article(
+            source_name=source["name"],
+            source_kind="news_search",
+            source_url=url,
+            article_url=link,
+            title=title,
+            body=body,
+            published_at=published,
+            province_hint=source.get("province"),
+        ))
+    return result
+
+
 def article_fingerprint(article: Article) -> str:
     return hashlib.sha256(article.article_url.encode("utf-8")).hexdigest()[:24]
+
+
+def article_content_hash(article: Article) -> str:
+    canonical = normalize_text(f"{article.title}\n{article.body}")
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
