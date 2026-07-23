@@ -1,7 +1,7 @@
 {
   "format": "kouroshyar-holiday-feed-v1",
-  "revision": 7,
-  "generatedAt": "2026-07-22T21:16:56.678257+00:00",
+  "revision": 8,
+  "generatedAt": "2026-07-23T14:02:25.683009+00:00",
   "holidays": [
     {
       "id": "official-1405-01-01",
@@ -246,6 +246,35 @@
         "واحدهای عملیاتی",
         "نیروهای شیفت‌گردان"
       ]
+    },
+    {
+      "id": "holiday-ایلام-1405-04-24-c1ae63f3ff52",
+      "date": "1405-04-24",
+      "title": "دهلران تعطیل سایر شهرستان ها دو ساعت تعجیل در خروج",
+      "type": "administrative",
+      "scope": "county",
+      "authority": "استانداری ایلام",
+      "sourceUrl": "https://www.portal-il.ir/archives/arshive1/%D8%AF%D9%87%D9%84%D8%B1%D8%A7%D9%86-%D8%AA%D8%B9%D8%B7%DB%8C%D9%84-%D8%B3%D8%A7%DB%8C%D8%B1-%D8%B4%D9%87%D8%B1%D8%B3%D8%AA%D8%A7%D9%86%E2%80%8C%D9%87%D8%A7-%D8%AF%D9%88-%D8%B3%D8%A7%D8%B9%D8%AA-%D8%AA%D8%B9%D8%AC%DB%8C%D9%84-%D8%AF%D8%B1-%D8%AE%D8%B1%D9%88%D8%AC",
+      "publishedAt": "2026-07-15T03:50:55+00:00",
+      "status": "active",
+      "province": "ایلام",
+      "counties": [
+        "ها"
+      ],
+      "includedOrganizations": [
+        "ادارات",
+        "دستگاه‌های اجرایی",
+        "بانک‌ها",
+        "شرکت‌های بیمه"
+      ],
+      "excludedOrganizations": [
+        "دستگاه‌های خدمات‌رسان",
+        "مراکز درمانی",
+        "نیروهای نظامی و انتظامی",
+        "واحدهای عملیاتی",
+        "نیروهای شیفت‌گردان"
+      ],
+      "note": "استخراج خودکار از اطلاعیه رسمی؛ محدوده شهرستانی بدون تعمیم به کل استان ثبت شده است."
     },
     {
       "id": "holiday-ایلام-1405-04-24-cdf44b6f2ca9",
