@@ -12,42 +12,6 @@ import '../../database/app_database.dart';
 import '../../database/database_provider.dart';
 import '../cases/case_detail_screen.dart';
 import '../deadlines/personal_deadline_utils.dart';
-import '../notifications/notification_service.dart';
-import 'holiday_update_service.dart';
-
-const List<String> _iranProvinces = <String>[
-  'آذربایجان شرقی',
-  'آذربایجان غربی',
-  'اردبیل',
-  'اصفهان',
-  'البرز',
-  'ایلام',
-  'بوشهر',
-  'تهران',
-  'چهارمحال و بختیاری',
-  'خراسان جنوبی',
-  'خراسان رضوی',
-  'خراسان شمالی',
-  'خوزستان',
-  'زنجان',
-  'سمنان',
-  'سیستان و بلوچستان',
-  'فارس',
-  'قزوین',
-  'قم',
-  'کردستان',
-  'کرمان',
-  'کرمانشاه',
-  'کهگیلویه و بویراحمد',
-  'گلستان',
-  'گیلان',
-  'لرستان',
-  'مازندران',
-  'مرکزی',
-  'هرمزگان',
-  'همدان',
-  'یزد',
-];
 
 enum _CalendarViewMode { day, week, month, year }
 
@@ -97,7 +61,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   void initState() {
     super.initState();
     widget.backController?._attach(_handleCalendarBackFromShell);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoUpdateHolidays());
   }
 
   @override
@@ -284,196 +247,36 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     return rows.first;
   }
 
-  Future<CalendarSetting> _persistCalendarSetting(AppDatabase db, CalendarSetting setting) async {
+  Future<void> _saveCalendarSetting(AppDatabase db, CalendarSetting current, String weekendMode, bool showOfficialHolidays, String defaultView) async {
     final existing = await db.select(db.calendarSettings).get();
-    final updated = setting.copyWith(
-      id: existing.isEmpty ? setting.id : existing.first.id,
-      updatedAt: DateTime.now(),
-    );
     if (existing.isEmpty) {
-      final id = await db.into(db.calendarSettings).insert(
+      await db.into(db.calendarSettings).insert(
             CalendarSettingsCompanion.insert(
-              weekendMode: Value(updated.weekendMode),
-              showOfficialHolidays: Value(updated.showOfficialHolidays),
-              defaultView: Value(updated.defaultView),
-              onlineHolidayUpdatesEnabled: Value(updated.onlineHolidayUpdatesEnabled),
-              holidayAutoUpdateEnabled: Value(updated.holidayAutoUpdateEnabled),
-              holidayProvince: Value(updated.holidayProvince),
-              holidayFeedData: Value<String?>(updated.holidayFeedData),
-              holidayFeedRevision: Value(updated.holidayFeedRevision),
-              workingHoursFeedData: Value<String?>(updated.workingHoursFeedData),
-              workingHoursFeedRevision: Value(updated.workingHoursFeedRevision),
-              holidayLastCheckedAt: Value<DateTime?>(updated.holidayLastCheckedAt),
-              holidayLastSuccessAt: Value<DateTime?>(updated.holidayLastSuccessAt),
-              holidayLastError: Value<String?>(updated.holidayLastError),
+              weekendMode: Value(weekendMode),
+              showOfficialHolidays: Value(showOfficialHolidays),
+              defaultView: Value(defaultView),
             ),
           );
-      return updated.copyWith(id: id);
+      return;
     }
-    await db.update(db.calendarSettings).replace(updated);
-    return updated;
-  }
-
-  CalendarSetting _calendarSettingsDraft(
-    CalendarSetting base, {
-    required String weekendMode,
-    required bool showOfficialHolidays,
-    required String defaultView,
-    required bool onlineHolidayUpdatesEnabled,
-    required bool holidayAutoUpdateEnabled,
-    required String holidayProvince,
-  }) {
-    return base.copyWith(
-      weekendMode: weekendMode,
-      showOfficialHolidays: showOfficialHolidays,
-      defaultView: defaultView,
-      onlineHolidayUpdatesEnabled: onlineHolidayUpdatesEnabled,
-      holidayAutoUpdateEnabled: holidayAutoUpdateEnabled,
-      holidayProvince: holidayProvince,
-      updatedAt: DateTime.now(),
-    );
-  }
-
-  String _holidayUpdateTime(DateTime? value) {
-    if (value == null) return 'ثبت نشده';
-    final hh = toPersianDigits(value.hour.toString().padLeft(2, '0'));
-    final mm = toPersianDigits(value.minute.toString().padLeft(2, '0'));
-    return '${formatPersianLongDate(value)}، ساعت $hh:$mm';
-  }
-
-  Future<CalendarSetting> _checkHolidayUpdates(
-    AppDatabase db,
-    CalendarSetting setting, {
-    required bool showFeedback,
-  }) async {
-    final holidayService = HolidayUpdateService();
-    final workScheduleService = WorkScheduleUpdateService();
-    final checkedAt = DateTime.now();
-    var updated = setting;
-    var addedHolidayCount = 0;
-    var addedScheduleCount = 0;
-    var holidaySucceeded = false;
-    var scheduleSucceeded = false;
-    final errors = <String>[];
-
-    try {
-      final previous = HolidayFeedSnapshot.tryDecodeStored(setting.holidayFeedData);
-      final snapshot = await holidayService.fetchAndVerify(currentRevision: setting.holidayFeedRevision);
-      final previousIds = previous?.activeIdsForProvince(setting.holidayProvince) ?? const <String>{};
-      final nextIds = snapshot.activeIdsForProvince(setting.holidayProvince);
-      addedHolidayCount = nextIds.difference(previousIds).length;
-      updated = updated.copyWith(
-        holidayFeedData: Value<String?>(snapshot.encodeForStorage()),
-        holidayFeedRevision: snapshot.revision,
-      );
-      holidaySucceeded = true;
-    } catch (error) {
-      errors.add('تعطیلات: $error');
-    }
-
-    try {
-      final previous = WorkScheduleFeedSnapshot.tryDecodeStored(setting.workingHoursFeedData);
-      final snapshot = await workScheduleService.fetchAndVerify(
-        currentRevision: setting.workingHoursFeedRevision,
-      );
-      final previousIds = previous?.activeIdsForProvince(setting.holidayProvince) ?? const <String>{};
-      final nextIds = snapshot.activeIdsForProvince(setting.holidayProvince);
-      addedScheduleCount = nextIds.difference(previousIds).length;
-      updated = updated.copyWith(
-        workingHoursFeedData: Value<String?>(snapshot.encodeForStorage()),
-        workingHoursFeedRevision: snapshot.revision,
-      );
-      scheduleSucceeded = true;
-    } catch (error) {
-      errors.add('ساعات کاری: $error');
-    }
-
-    final anySuccess = holidaySucceeded || scheduleSucceeded;
-    final saved = await _persistCalendarSetting(
-      db,
-      updated.copyWith(
-        holidayLastCheckedAt: Value<DateTime?>(checkedAt),
-        holidayLastSuccessAt: anySuccess
-            ? Value<DateTime?>(checkedAt)
-            : Value<DateTime?>(setting.holidayLastSuccessAt),
-        holidayLastError: Value<String?>(errors.isEmpty ? null : errors.join('\n')),
-        updatedAt: checkedAt,
-      ),
-    );
-
-    final totalAdded = addedHolidayCount + addedScheduleCount;
-    if (totalAdded > 0) {
-      try {
-        final parts = <String>[
-          if (addedHolidayCount > 0) '${toPersianDigits(addedHolidayCount.toString())} تعطیلی',
-          if (addedScheduleCount > 0) '${toPersianDigits(addedScheduleCount.toString())} تغییر ساعات کاری',
-        ];
-        await NotificationService.showImmediate(
-          title: 'به‌روزرسانی جدید تقویم کوروش‌یار',
-          body: '${parts.join(' و ')} برای ${setting.holidayProvince} دریافت شد.',
+    await db.update(db.calendarSettings).replace(
+          current.copyWith(
+            weekendMode: weekendMode,
+            showOfficialHolidays: showOfficialHolidays,
+            defaultView: defaultView,
+            updatedAt: DateTime.now(),
+          ),
         );
-      } catch (_) {
-        // دریافت اطلاعات تقویم نباید به مجوز اعلان وابسته باشد.
-      }
-    }
-
-    if (showFeedback && mounted) {
-      String message;
-      if (errors.isEmpty) {
-        if (totalAdded > 0) {
-          final parts = <String>[
-            if (addedHolidayCount > 0) '${toPersianDigits(addedHolidayCount.toString())} تعطیلی جدید',
-            if (addedScheduleCount > 0) '${toPersianDigits(addedScheduleCount.toString())} تغییر ساعات کاری جدید',
-          ];
-          message = '${parts.join(' و ')} دریافت و ذخیره شد.';
-        } else {
-          message = 'تعطیلات و تغییر ساعات کاری بررسی شد و اطلاعات ذخیره‌شده به‌روز است.';
-        }
-      } else if (anySuccess) {
-        message = 'بخشی از اطلاعات دریافت شد؛ ${errors.join(' | ')}';
-      } else {
-        message = errors.join(' | ');
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    }
-    return saved;
-  }
-
-  Future<void> _maybeAutoUpdateHolidays() async {
-    if (!mounted) return;
-    try {
-      final db = ref.read(databaseProvider);
-      final setting = await _readCalendarSetting(db);
-      final service = HolidayUpdateService();
-      if (!setting.onlineHolidayUpdatesEnabled ||
-          !setting.holidayAutoUpdateEnabled ||
-          !service.isConfigured) {
-        return;
-      }
-      final lastCheck = setting.holidayLastCheckedAt;
-      if (lastCheck != null && DateTime.now().difference(lastCheck) < const Duration(hours: 24)) {
-        return;
-      }
-      await _checkHolidayUpdates(db, setting, showFeedback: false);
-    } catch (_) {
-      // تقویم آفلاین حتی در خطای شبکه یا تنظیمات باید بدون وقفه کار کند.
-    }
   }
 
   Future<void> _openCalendarSettings() async {
     final db = ref.read(databaseProvider);
-    var working = await _readCalendarSetting(db);
+    final current = await _readCalendarSetting(db);
     if (!mounted) return;
 
-    var weekendMode = working.weekendMode;
-    var showOfficialHolidays = working.showOfficialHolidays;
-    var defaultView = working.defaultView;
-    var onlineHolidayUpdatesEnabled = working.onlineHolidayUpdatesEnabled;
-    var holidayAutoUpdateEnabled = working.holidayAutoUpdateEnabled;
-    var holidayProvince = working.holidayProvince;
-    var checkingUpdates = false;
-    final updateService = HolidayUpdateService();
-    final workScheduleService = WorkScheduleUpdateService();
+    var weekendMode = current.weekendMode;
+    var showOfficialHolidays = current.showOfficialHolidays;
+    var defaultView = current.defaultView;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -509,95 +312,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     SwitchListTile(
                       value: showOfficialHolidays,
                       title: const Text('نمایش تعطیلات رسمی ایران'),
-                      subtitle: const Text('تعطیلات داخلی برنامه آفلاین باقی می‌مانند و بدون اینترنت نمایش داده می‌شوند.'),
+                      subtitle: const Text('تعطیلات ثابت خورشیدی برای همه سال‌ها و تعطیلات متغیر رسمی کامل سال ۱۴۰۵؛ سال‌های بعد فقط پس از انتشار رسمی افزوده می‌شوند.'),
                       onChanged: (value) => setSheetState(() => showOfficialHolidays = value),
                     ),
-                    const Divider(),
-                    SwitchListTile(
-                      value: onlineHolidayUpdatesEnabled,
-                      title: const Text('به‌روزرسانی اینترنتی تعطیلات و ساعات کاری'),
-                      subtitle: const Text('اختیاری؛ فقط فایل‌های امضاشده تعطیلات و تغییر ساعات کاری دریافت می‌شوند و هیچ پرونده، مدرک یا داده شخصی برنامه ارسال نمی‌شود.'),
-                      onChanged: (value) => setSheetState(() => onlineHolidayUpdatesEnabled = value),
-                    ),
-                    if (onlineHolidayUpdatesEnabled) ...[
-                      DropdownButtonFormField<String>(
-                        value: _iranProvinces.contains(holidayProvince) ? holidayProvince : 'ایلام',
-                        decoration: const InputDecoration(labelText: 'استان منتخب'),
-                        items: _iranProvinces
-                            .map((province) => DropdownMenuItem<String>(value: province, child: Text(province)))
-                            .toList(growable: false),
-                        onChanged: (value) => setSheetState(() => holidayProvince = value ?? 'ایلام'),
-                      ),
-                      SwitchListTile(
-                        value: holidayAutoUpdateEnabled,
-                        title: const Text('بررسی خودکار روزانه'),
-                        subtitle: const Text('حداکثر یک‌بار در ۲۴ ساعت و فقط هنگام بازشدن تقویم.'),
-                        onChanged: (value) => setSheetState(() => holidayAutoUpdateEnabled = value),
-                      ),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                updateService.isConfigured && workScheduleService.isConfigured
-                                    ? 'منابع امضاشده تعطیلات و ساعات کاری تنظیم شده‌اند.'
-                                    : 'منبع امضاشده هنوز کامل تنظیم نشده است.',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: updateService.isConfigured && workScheduleService.isConfigured
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).colorScheme.error,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text('آخرین بررسی: ${_holidayUpdateTime(working.holidayLastCheckedAt)}'),
-                              Text('آخرین دریافت موفق: ${_holidayUpdateTime(working.holidayLastSuccessAt)}'),
-                              Text('بازبینی تعطیلات: ${toPersianDigits(working.holidayFeedRevision.toString())}'),
-                              Text('بازبینی ساعات کاری: ${toPersianDigits(working.workingHoursFeedRevision.toString())}'),
-                              if ((working.holidayLastError ?? '').trim().isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  working.holidayLastError!,
-                                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        icon: checkingUpdates
-                            ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.cloud_download_outlined),
-                        label: const Text('بررسی به‌روزرسانی اکنون'),
-                        onPressed: checkingUpdates || !updateService.isConfigured || !workScheduleService.isConfigured
-                            ? null
-                            : () async {
-                                setSheetState(() => checkingUpdates = true);
-                                try {
-                                  final draft = _calendarSettingsDraft(
-                                    working,
-                                    weekendMode: weekendMode,
-                                    showOfficialHolidays: showOfficialHolidays,
-                                    defaultView: defaultView,
-                                    onlineHolidayUpdatesEnabled: onlineHolidayUpdatesEnabled,
-                                    holidayAutoUpdateEnabled: holidayAutoUpdateEnabled,
-                                    holidayProvince: holidayProvince,
-                                  );
-                                  working = await _persistCalendarSetting(db, draft);
-                                  working = await _checkHolidayUpdates(db, working, showFeedback: true);
-                                } finally {
-                                  if (context.mounted) setSheetState(() => checkingUpdates = false);
-                                }
-                              },
-                      ),
-                      const Text(
-                        'تعطیلی یا تغییر ساعات کاری هیچ مهلتی را خودکار جابه‌جا نمی‌کند؛ فقط هشدار بررسی مرجع یا ساعت مراجعه نمایش داده می‌شود.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ],
                     const Divider(),
                     const Text('نمای پیش‌فرض تقویم'),
                     Wrap(
@@ -613,21 +330,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     FilledButton.icon(
                       icon: const Icon(Icons.save),
                       label: const Text('ذخیره تنظیمات تقویم'),
-                      onPressed: checkingUpdates
-                          ? null
-                          : () async {
-                              final draft = _calendarSettingsDraft(
-                                working,
-                                weekendMode: weekendMode,
-                                showOfficialHolidays: showOfficialHolidays,
-                                defaultView: defaultView,
-                                onlineHolidayUpdatesEnabled: onlineHolidayUpdatesEnabled,
-                                holidayAutoUpdateEnabled: holidayAutoUpdateEnabled,
-                                holidayProvince: holidayProvince,
-                              );
-                              working = await _persistCalendarSetting(db, draft);
-                              if (context.mounted) Navigator.pop(context);
-                            },
+                      onPressed: () async {
+                        await _saveCalendarSetting(db, current, weekendMode, showOfficialHolidays, defaultView);
+                        if (context.mounted) Navigator.pop(context);
+                      },
                     ),
                   ],
                 ),
@@ -674,7 +380,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         priority: task.priority,
         isDone: task.isDone,
         notes: null,
-        holidayWarning: null,
       ));
     }
 
@@ -689,9 +394,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         priority: deadline.priority,
         isDone: deadline.isDone,
         notes: deadline.notes,
-        holidayWarning: deadline.caseId != null && !deadline.isDone && _isHoliday(deadline.dueDate, settings)
-            ? 'هشدار: روز سررسید با تعطیلی تقویم مصادف است؛ وضعیت فعالیت مرجع قضایی بررسی شود. تاریخ مهلت خودکار تغییر نکرده است.'
-            : null,
       ));
     }
 
@@ -707,7 +409,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         priority: 'زیاد',
         isDone: event.isDone,
         notes: event.description,
-        holidayWarning: null,
       ));
     }
 
@@ -1154,8 +855,6 @@ class _WeekCalendarView extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         _HolidayBanner(day: selectedDay, settings: settings),
-        _PeriodicWorkScheduleText(day: selectedDay, settings: settings),
-        _WorkScheduleBanner(day: selectedDay, settings: settings),
         _DayAgendaCard(
           title: 'برنامه ${formatPersianLongDate(selectedDay)}',
           emptyText: 'برای این روز کار، مهلت یا جلسه‌ای ثبت نشده است.',
@@ -1248,8 +947,6 @@ class _MonthCalendarView extends StatelessWidget {
                         isToday: _sameDate(day, DateTime.now()),
                         isHoliday: _isHoliday(day, settings),
                         holidayTitle: _holidayTitle(day, settings),
-                        hasLocalHoliday: _hasLocalHoliday(day, settings),
-                        hasWorkSchedule: _hasWorkSchedule(day, settings),
                         items: itemsForDay(day),
                         onTap: () => onSelectDay(day),
                       );
@@ -1261,7 +958,6 @@ class _MonthCalendarView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        _MonthlyPeriodicWorkScheduleText(anchorDate: anchorDate, settings: settings),
         Text(
           'برای دیدن جزئیات یک روز، روی خانه همان روز بزنید. این ماه ${toPersianDigits(monthLength.toString())} روز دارد.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -1295,8 +991,6 @@ class _DayCalendarView extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 0, 12, bottom + 72),
       children: [
         _HolidayBanner(day: day, settings: settings),
-        _PeriodicWorkScheduleText(day: day, settings: settings),
-        _WorkScheduleBanner(day: day, settings: settings),
         _DayAgendaCard(
           title: formatPersianLongDate(day),
           emptyText: 'برای این روز برنامه‌ای ثبت نشده است.',
@@ -1345,15 +1039,11 @@ class _YearCalendarView extends StatelessWidget {
         final end = month == 12 ? jalaliToGregorian(j.year + 1, 1, 1).subtract(const Duration(days: 1)) : jalaliToGregorian(j.year, month + 1, 1).subtract(const Duration(days: 1));
         final monthItems = itemsBetween(items, start, end);
         final holidayCount = _holidayCountInRange(start, end, settings);
-        final localHolidayCount = _localHolidayCountInRange(start, end, settings);
-        final workScheduleCount = _workScheduleCountInRange(start, end, settings);
         return _YearMonthCard(
           year: j.year,
           month: month,
           items: monthItems,
           holidayCount: holidayCount,
-          localHolidayCount: localHolidayCount,
-          workScheduleCount: workScheduleCount,
           onTap: () => onSelectMonth(start),
         );
       },
@@ -1384,10 +1074,7 @@ class _WeekDayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final j = gregorianToJalali(day);
     final holiday = _isHoliday(day, settings);
-    final localHoliday = _hasLocalHoliday(day, settings);
-    final hasWorkSchedule = _hasWorkSchedule(day, settings);
     final error = Theme.of(context).colorScheme.error;
-    final workColor = Colors.orange.shade700;
     final titleColor = holiday ? error : null;
     return SizedBox(
       width: 94,
@@ -1399,16 +1086,8 @@ class _WeekDayCard extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: isToday
-                  ? Theme.of(context).colorScheme.primary
-                  : holiday
-                      ? error.withOpacity(0.65)
-                      : localHoliday
-                          ? Colors.deepOrange.withOpacity(0.65)
-                          : hasWorkSchedule
-                          ? workColor.withOpacity(0.65)
-                          : Colors.transparent,
-              width: isToday || holiday || localHoliday || hasWorkSchedule ? 1.5 : 1,
+              color: isToday ? Theme.of(context).colorScheme.primary : holiday ? error.withOpacity(0.65) : Colors.transparent,
+              width: isToday || holiday ? 1.5 : 1,
             ),
           ),
           child: Padding(
@@ -1429,18 +1108,8 @@ class _WeekDayCard extends StatelessWidget {
                 ),
                 Text('${_monthName(j.month)} ${toPersianDigits(j.year.toString())}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 const Spacer(),
-                if (holiday || localHoliday || hasWorkSchedule)
-                  Wrap(
-                    spacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (holiday)
-                        Text('تعطیل', style: TextStyle(fontSize: 10, color: error, fontWeight: FontWeight.bold)),
-                      if (localHoliday)
-                        Text('تعطیلی محلی', style: TextStyle(fontSize: 9, color: Colors.deepOrange.shade800, fontWeight: FontWeight.bold)),
-                      if (hasWorkSchedule) Icon(Icons.access_time_filled, size: 14, color: workColor),
-                    ],
-                  )
+                if (holiday)
+                  Text('تعطیل', style: TextStyle(fontSize: 10, color: error, fontWeight: FontWeight.bold))
                 else if (items.isEmpty)
                   Text('خالی', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(.55)))
                 else
@@ -1471,8 +1140,6 @@ class _MonthDayCell extends StatelessWidget {
     required this.isToday,
     required this.isHoliday,
     required this.holidayTitle,
-    required this.hasLocalHoliday,
-    required this.hasWorkSchedule,
     required this.items,
     required this.onTap,
   });
@@ -1482,8 +1149,6 @@ class _MonthDayCell extends StatelessWidget {
   final bool isToday;
   final bool isHoliday;
   final String? holidayTitle;
-  final bool hasLocalHoliday;
-  final bool hasWorkSchedule;
   final List<_CalendarItem> items;
   final VoidCallback onTap;
 
@@ -1492,17 +1157,7 @@ class _MonthDayCell extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final opacity = inCurrentMonth ? 1.0 : 0.62;
     final error = scheme.error;
-    final localColor = Colors.deepOrange.shade700;
-    final workColor = Colors.orange.shade700;
-    final borderColor = isToday
-        ? scheme.primary
-        : isHoliday
-            ? error.withOpacity(0.7)
-            : hasLocalHoliday
-                ? localColor.withOpacity(0.72)
-                : hasWorkSchedule
-                ? workColor.withOpacity(0.65)
-                : scheme.outlineVariant;
+    final borderColor = isToday ? scheme.primary : isHoliday ? error.withOpacity(0.7) : scheme.outlineVariant;
     final fill = isToday
         ? scheme.primaryContainer.withOpacity(0.55)
         : isHoliday
@@ -1535,18 +1190,12 @@ class _MonthDayCell extends StatelessWidget {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dayTextColor),
                   ),
                   const Spacer(),
-                  if (hasLocalHoliday) Icon(Icons.location_on, size: 13, color: localColor),
-                  if (hasLocalHoliday && hasWorkSchedule) const SizedBox(width: 2),
-                  if (hasWorkSchedule) Icon(Icons.access_time_filled, size: 13, color: workColor),
-                  if ((hasWorkSchedule || hasLocalHoliday) && isHoliday) const SizedBox(width: 2),
                   if (isHoliday) Icon(Icons.circle, size: 7, color: error),
                 ],
               ),
               const SizedBox(height: 2),
               if (holidayTitle != null)
                 Text('تعطیل', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: error, fontWeight: FontWeight.bold)),
-              if (holidayTitle == null && hasLocalHoliday)
-                Text('تعطیلی محلی', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: localColor, fontWeight: FontWeight.bold)),
               if (items.isEmpty)
                 const Spacer()
               else ...[
@@ -1563,22 +1212,12 @@ class _MonthDayCell extends StatelessWidget {
 }
 
 class _YearMonthCard extends StatelessWidget {
-  const _YearMonthCard({
-    required this.year,
-    required this.month,
-    required this.items,
-    required this.holidayCount,
-    required this.localHolidayCount,
-    required this.workScheduleCount,
-    required this.onTap,
-  });
+  const _YearMonthCard({required this.year, required this.month, required this.items, required this.holidayCount, required this.onTap});
 
   final int year;
   final int month;
   final List<_CalendarItem> items;
   final int holidayCount;
-  final int localHolidayCount;
-  final int workScheduleCount;
   final VoidCallback onTap;
 
   @override
@@ -1601,8 +1240,6 @@ class _YearMonthCard extends StatelessWidget {
               _YearLine(icon: Icons.groups, label: 'جلسه', count: sessionCount),
               _YearLine(icon: Icons.task_alt, label: 'کار', count: taskCount),
               _YearLine(icon: Icons.event_busy, label: 'تعطیل', count: holidayCount),
-              _YearLine(icon: Icons.location_on, label: 'تعطیلی محلی', count: localHolidayCount),
-              _YearLine(icon: Icons.access_time_filled, label: 'تغییر ساعت', count: workScheduleCount),
               const Spacer(),
               Text('ورود به ماه', textAlign: TextAlign.left, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
             ],
@@ -1644,304 +1281,15 @@ class _HolidayBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = _holidayTitle(day, settings);
-    final localEvents = _localHolidayEventsForDate(day, settings);
-    if (title == null && localEvents.isEmpty) return const SizedBox.shrink();
+    if (title == null) return const SizedBox.shrink();
     final error = Theme.of(context).colorScheme.error;
-    final localColor = Colors.deepOrange.shade800;
-    return Column(
-      children: [
-        if (title != null)
-          Card(
-            color: error.withOpacity(0.12),
-            child: ListTile(
-              leading: Icon(Icons.event_busy, color: error),
-              title: Text('روز تعطیل', style: TextStyle(color: error, fontWeight: FontWeight.bold)),
-              subtitle: Text(title),
-              dense: true,
-            ),
-          ),
-        for (final event in localEvents)
-          Card(
-            color: localColor.withOpacity(0.10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: localColor.withOpacity(0.42)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => _showLocalHolidayDetails(context, day: day, event: event),
-              child: ListTile(
-                leading: Icon(Icons.location_on, color: localColor),
-                title: Text('تعطیلی محلی', style: TextStyle(color: localColor, fontWeight: FontWeight.bold)),
-                subtitle: Text('${event.locationLabel}\n${event.title}'),
-                trailing: Icon(Icons.chevron_left_rounded, color: localColor),
-                dense: true,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-Future<void> _showLocalHolidayDetails(
-  BuildContext context, {
-  required DateTime day,
-  required OfficialHolidayUpdate event,
-}) async {
-  final scheme = Theme.of(context).colorScheme;
-  final published = event.publishedAt.toLocal();
-  final publishedText = toPersianDigits(
-    '${published.year.toString().padLeft(4, '0')}/${published.month.toString().padLeft(2, '0')}/${published.day.toString().padLeft(2, '0')} '
-    '${published.hour.toString().padLeft(2, '0')}:${published.minute.toString().padLeft(2, '0')}',
-  );
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (sheetContext) => Directionality(
-      textDirection: TextDirection.rtl,
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + MediaQuery.of(sheetContext).viewInsets.bottom),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('تعطیلی محلی', style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 14),
-            _WorkScheduleDetailLine(label: 'تاریخ اجرا', value: formatPersianLongDate(day)),
-            _WorkScheduleDetailLine(label: 'محدوده اجرا', value: event.locationLabel),
-            _WorkScheduleDetailLine(label: 'عنوان اطلاعیه', value: event.title),
-            _WorkScheduleDetailLine(label: 'نوع', value: event.typeLabel),
-            if (event.includedOrganizations.isNotEmpty)
-              _WorkScheduleDetailLine(label: 'مشمولان', value: event.includedOrganizations.join('، ')),
-            if (event.excludedOrganizations.isNotEmpty)
-              _WorkScheduleDetailLine(label: 'موارد مستثنا', value: event.excludedOrganizations.join('، ')),
-            if (event.excludedCounties.isNotEmpty)
-              _WorkScheduleDetailLine(label: 'شهرستان‌های مستثنا', value: event.excludedCounties.join('، ')),
-            _WorkScheduleDetailLine(label: 'مرجع رسمی', value: event.authority),
-            _WorkScheduleDetailLine(label: 'زمان انتشار', value: publishedText),
-            if (event.note != null && event.note!.trim().isNotEmpty)
-              _WorkScheduleDetailLine(label: 'توضیحات', value: event.note!.trim()),
-            if (event.sourceUrl != null && event.sourceUrl!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text('منبع رسمی', style: TextStyle(fontWeight: FontWeight.bold, color: scheme.primary)),
-              const SizedBox(height: 4),
-              SelectableText(event.sourceUrl!.trim(), style: TextStyle(color: scheme.onSurfaceVariant)),
-            ],
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-
-class _PeriodicWorkScheduleText extends StatelessWidget {
-  const _PeriodicWorkScheduleText({required this.day, required this.settings});
-
-  final DateTime day;
-  final CalendarSetting settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final schedules = _periodicWorkSchedulesForDate(day, settings);
-    if (schedules.isEmpty) return const SizedBox.shrink();
-    return _PeriodicScheduleLines(schedules: schedules, settings: settings);
-  }
-}
-
-class _MonthlyPeriodicWorkScheduleText extends StatelessWidget {
-  const _MonthlyPeriodicWorkScheduleText({required this.anchorDate, required this.settings});
-
-  final DateTime anchorDate;
-  final CalendarSetting settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final schedules = _periodicWorkSchedulesForMonth(anchorDate, settings);
-    if (schedules.isEmpty) return const SizedBox.shrink();
-    return _PeriodicScheduleLines(schedules: schedules, settings: settings);
-  }
-}
-
-class _PeriodicScheduleLines extends StatelessWidget {
-  const _PeriodicScheduleLines({required this.schedules, required this.settings});
-
-  final List<WorkScheduleUpdate> schedules;
-  final CalendarSetting settings;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        children: [
-          for (final schedule in schedules)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: Text(
-                _periodicScheduleDescription(schedule, settings.holidayProvince),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                  height: 1.55,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WorkScheduleBanner extends StatelessWidget {
-  const _WorkScheduleBanner({required this.day, required this.settings});
-
-  final DateTime day;
-  final CalendarSetting settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final schedules = _exceptionWorkSchedulesForDate(day, settings);
-    if (schedules.isEmpty) return const SizedBox.shrink();
-    final periodicSchedules = _periodicWorkSchedulesForDate(day, settings);
-    String? fallbackStartTime;
-    for (final periodic in periodicSchedules) {
-      if (periodic.startTime != null && periodic.startTime!.trim().isNotEmpty) {
-        fallbackStartTime = periodic.startTime;
-        break;
-      }
-    }
-    final workColor = Colors.orange.shade800;
-    return Column(
-      children: [
-        for (final schedule in schedules)
-          Card(
-            color: workColor.withOpacity(0.10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: workColor.withOpacity(0.45)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => _showWorkScheduleDetails(
-                context,
-                day: day,
-                schedule: schedule,
-                fallbackStartTime: fallbackStartTime,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        toPersianDigits(schedule.administrativeSummary(fallbackStartTime: fallbackStartTime)),
-                        style: TextStyle(color: workColor, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Icons.chevron_left_rounded, color: workColor),
-                  ],
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-Future<void> _showWorkScheduleDetails(
-  BuildContext context, {
-  required DateTime day,
-  required WorkScheduleUpdate schedule,
-  String? fallbackStartTime,
-}) async {
-  final scheme = Theme.of(context).colorScheme;
-  final summary = toPersianDigits(schedule.administrativeSummary(fallbackStartTime: fallbackStartTime));
-  final published = schedule.publishedAt.toLocal();
-  final publishedText = toPersianDigits(
-    '${published.year.toString().padLeft(4, '0')}/${published.month.toString().padLeft(2, '0')}/${published.day.toString().padLeft(2, '0')} '
-    '${published.hour.toString().padLeft(2, '0')}:${published.minute.toString().padLeft(2, '0')}',
-  );
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (sheetContext) {
-      return Directionality(
-        textDirection: TextDirection.rtl,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            18,
-            4,
-            18,
-            18 + MediaQuery.of(sheetContext).viewInsets.bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(summary, style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 14),
-              _WorkScheduleDetailLine(label: 'تاریخ اجرا', value: formatPersianLongDate(day)),
-              _WorkScheduleDetailLine(label: 'عنوان اطلاعیه', value: schedule.title),
-              _WorkScheduleDetailLine(label: 'نوع', value: schedule.typeLabel),
-              _WorkScheduleDetailLine(label: 'ساعت', value: toPersianDigits(schedule.timeLabel)),
-              _WorkScheduleDetailLine(label: 'محدوده اجرا', value: schedule.scopeLabel),
-              if (schedule.includedOrganizations.isNotEmpty)
-                _WorkScheduleDetailLine(label: 'مشمولان', value: schedule.includedOrganizations.join('، ')),
-              if (schedule.excludedOrganizations.isNotEmpty)
-                _WorkScheduleDetailLine(label: 'موارد مستثنا', value: schedule.excludedOrganizations.join('، ')),
-              if (schedule.excludedCounties.isNotEmpty)
-                _WorkScheduleDetailLine(label: 'شهرستان‌های مستثنا', value: schedule.excludedCounties.join('، ')),
-              _WorkScheduleDetailLine(label: 'مرجع رسمی', value: schedule.authority),
-              _WorkScheduleDetailLine(label: 'زمان انتشار', value: publishedText),
-              if (schedule.note != null && schedule.note!.trim().isNotEmpty)
-                _WorkScheduleDetailLine(label: 'توضیحات', value: schedule.note!.trim()),
-              if (schedule.sourceUrl != null && schedule.sourceUrl!.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('منبع رسمی', style: TextStyle(fontWeight: FontWeight.bold, color: scheme.primary)),
-                const SizedBox(height: 4),
-                SelectableText(schedule.sourceUrl!.trim(), style: TextStyle(color: scheme.onSurfaceVariant)),
-              ],
-              const SizedBox(height: 14),
-              Text(
-                'این تغییر، روز را تعطیل نمی‌کند و هیچ کار، جلسه یا مهلتی را خودکار جابه‌جا نمی‌کند.',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-class _WorkScheduleDetailLine extends StatelessWidget {
-  const _WorkScheduleDetailLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: RichText(
-        text: TextSpan(
-          style: DefaultTextStyle.of(context).style.copyWith(height: 1.55),
-          children: [
-            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-            TextSpan(text: value),
-          ],
-        ),
+    return Card(
+      color: error.withOpacity(0.12),
+      child: ListTile(
+        leading: Icon(Icons.event_busy, color: error),
+        title: Text('روز تعطیل', style: TextStyle(color: error, fontWeight: FontWeight.bold)),
+        subtitle: Text(title),
+        dense: true,
       ),
     );
   }
@@ -2043,7 +1391,6 @@ class _CalendarAgendaTile extends StatelessWidget {
         'اولویت: ${item.priority}',
       if (item.caseTitle != null && item.caseTitle!.trim().isNotEmpty) 'پرونده: ${item.caseTitle}',
       if (item.notes != null && item.notes!.trim().isNotEmpty) item.notes!.trim(),
-      if (item.holidayWarning != null && item.holidayWarning!.trim().isNotEmpty) item.holidayWarning!.trim(),
     ];
 
     return Padding(
@@ -2142,7 +1489,6 @@ class _CalendarItem {
     required this.priority,
     required this.isDone,
     required this.notes,
-    this.holidayWarning,
   });
 
   final _CalendarItemType type;
@@ -2153,7 +1499,6 @@ class _CalendarItem {
   final String priority;
   final bool isDone;
   final String? notes;
-  final String? holidayWarning;
 }
 
 bool _sameDate(DateTime a, DateTime b) {
@@ -2254,11 +1599,7 @@ String? _holidayTitle(DateTime date, CalendarSetting settings) {
   if (_isWeekend(date, settings)) titles.add('تعطیلی آخر هفته');
   if (settings.showOfficialHolidays) {
     final official = _officialHolidayTitle(date);
-    if (official != null && !titles.contains(official)) titles.add(official);
-  }
-  if (settings.onlineHolidayUpdatesEnabled) {
-    final online = _onlineHolidayTitle(date, settings);
-    if (online != null && !titles.contains(online)) titles.add(online);
+    if (official != null) titles.add(official);
   }
   if (titles.isEmpty) return null;
   return titles.join(' | ');
@@ -2284,144 +1625,6 @@ String _holidayKey(int year, int month, int day) {
   return '$y-$m-$d';
 }
 
-String? _cachedHolidayFeedSource;
-HolidayFeedSnapshot? _cachedHolidayFeedSnapshot;
-
-HolidayFeedSnapshot? _onlineHolidayFeed(CalendarSetting settings) {
-  final source = settings.holidayFeedData;
-  if (source == null || source.trim().isEmpty) return null;
-  if (_cachedHolidayFeedSource != source) {
-    _cachedHolidayFeedSource = source;
-    _cachedHolidayFeedSnapshot = HolidayFeedSnapshot.tryDecodeStored(source);
-  }
-  return _cachedHolidayFeedSnapshot;
-}
-
-List<OfficialHolidayUpdate> _onlineHolidayEventsForDate(DateTime date, CalendarSetting settings) {
-  final feed = _onlineHolidayFeed(settings);
-  if (feed == null) return const <OfficialHolidayUpdate>[];
-  final j = gregorianToJalali(date);
-  final key = _holidayKey(j.year, j.month, j.day);
-  final matches = feed.holidays
-      .where((item) => item.jalaliDate == key && item.appliesToProvince(settings.holidayProvince))
-      .toList(growable: false)
-    ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
-  return matches;
-}
-
-String? _onlineHolidayTitle(DateTime date, CalendarSetting settings) {
-  final matches = _onlineHolidayEventsForDate(date, settings)
-      .where((item) => item.isFullDayHolidayForProvince(settings.holidayProvince))
-      .toList(growable: false);
-  if (matches.isEmpty) return null;
-  return matches
-      .map((item) => '${item.typeLabel}: ${item.title} — مرجع: ${item.authority}')
-      .toSet()
-      .join(' | ');
-}
-
-List<OfficialHolidayUpdate> _localHolidayEventsForDate(DateTime date, CalendarSetting settings) {
-  if (!settings.onlineHolidayUpdatesEnabled) return const <OfficialHolidayUpdate>[];
-  return _onlineHolidayEventsForDate(date, settings)
-      .where((item) => !item.isFullDayHolidayForProvince(settings.holidayProvince))
-      .toList(growable: false);
-}
-
-bool _hasLocalHoliday(DateTime date, CalendarSetting settings) =>
-    _localHolidayEventsForDate(date, settings).isNotEmpty;
-
-
-String? _cachedWorkScheduleFeedSource;
-WorkScheduleFeedSnapshot? _cachedWorkScheduleFeedSnapshot;
-
-WorkScheduleFeedSnapshot? _onlineWorkScheduleFeed(CalendarSetting settings) {
-  final source = settings.workingHoursFeedData;
-  if (source == null || source.trim().isEmpty) return null;
-  if (_cachedWorkScheduleFeedSource != source) {
-    _cachedWorkScheduleFeedSource = source;
-    _cachedWorkScheduleFeedSnapshot = WorkScheduleFeedSnapshot.tryDecodeStored(source);
-  }
-  return _cachedWorkScheduleFeedSnapshot;
-}
-
-List<WorkScheduleUpdate> _workSchedulesForDate(DateTime date, CalendarSetting settings) {
-  if (!settings.onlineHolidayUpdatesEnabled) return const <WorkScheduleUpdate>[];
-  final feed = _onlineWorkScheduleFeed(settings);
-  if (feed == null) return const <WorkScheduleUpdate>[];
-  final j = gregorianToJalali(date);
-  final key = _holidayKey(j.year, j.month, j.day);
-  return feed.schedulesForProvinceAndDate(settings.holidayProvince, key);
-}
-
-List<WorkScheduleUpdate> _periodicWorkSchedulesForDate(DateTime date, CalendarSetting settings) =>
-    _workSchedulesForDate(date, settings).where((item) => item.isPeriodicSchedule).toList(growable: false);
-
-List<WorkScheduleUpdate> _exceptionWorkSchedulesForDate(DateTime date, CalendarSetting settings) =>
-    _workSchedulesForDate(date, settings).where((item) => !item.isPeriodicSchedule).toList(growable: false);
-
-List<WorkScheduleUpdate> _periodicWorkSchedulesForMonth(DateTime anchorDate, CalendarSetting settings) {
-  if (!settings.onlineHolidayUpdatesEnabled) return const <WorkScheduleUpdate>[];
-  final feed = _onlineWorkScheduleFeed(settings);
-  if (feed == null) return const <WorkScheduleUpdate>[];
-  final j = gregorianToJalali(anchorDate);
-  final first = _holidayKey(j.year, j.month, 1);
-  final last = _holidayKey(j.year, j.month, _jalaliMonthLengthStatic(j.year, j.month));
-  final matches = feed.schedules.where((item) {
-    if (!item.isPeriodicSchedule || !item.appliesToProvince(settings.holidayProvince)) return false;
-    final end = item.endJalaliDate ?? item.jalaliDate;
-    return item.jalaliDate.compareTo(last) <= 0 && end.compareTo(first) >= 0;
-  }).toList(growable: false)
-    ..sort((a, b) => a.jalaliDate.compareTo(b.jalaliDate));
-  return matches;
-}
-
-bool _hasWorkSchedule(DateTime date, CalendarSetting settings) =>
-    _exceptionWorkSchedulesForDate(date, settings).isNotEmpty;
-
-String _periodicScheduleDescription(WorkScheduleUpdate schedule, String selectedProvince) {
-  final start = _formatJalaliKeyLong(schedule.jalaliDate);
-  final end = schedule.endJalaliDate == null ? null : _formatJalaliKeyLong(schedule.endJalaliDate!);
-  final range = end == null || end == start ? 'در $start' : 'از $start تا $end';
-  final startTime = schedule.startTime == null ? null : toPersianDigits(schedule.startTime!);
-  final endTime = schedule.endTime == null ? null : toPersianDigits(schedule.endTime!);
-  final time = startTime != null && endTime != null
-      ? '، از ساعت $startTime تا $endTime'
-      : startTime != null
-          ? '، از ساعت $startTime'
-          : endTime != null
-              ? '، تا ساعت $endTime'
-              : '';
-  final location = schedule.scope == 'national' ? 'استان $selectedProvince' : schedule.locationLabel;
-  return 'ساعت کاری ادارات $location $range$time است.';
-}
-
-String _formatJalaliKeyLong(String key) {
-  final parts = key.split('-').map(int.parse).toList(growable: false);
-  return '${toPersianDigits(parts[2].toString())} ${_monthName(parts[1])} ${toPersianDigits(parts[0].toString())}';
-}
-
-int _workScheduleCountInRange(DateTime start, DateTime end, CalendarSetting settings) {
-  var count = 0;
-  var day = DateTime(start.year, start.month, start.day);
-  final last = DateTime(end.year, end.month, end.day);
-  while (!day.isAfter(last)) {
-    if (_hasWorkSchedule(day, settings)) count += 1;
-    day = day.add(const Duration(days: 1));
-  }
-  return count;
-}
-
-int _localHolidayCountInRange(DateTime start, DateTime end, CalendarSetting settings) {
-  var count = 0;
-  var day = DateTime(start.year, start.month, start.day);
-  final last = DateTime(end.year, end.month, end.day);
-  while (!day.isAfter(last)) {
-    if (_hasLocalHoliday(day, settings)) count += 1;
-    day = day.add(const Duration(days: 1));
-  }
-  return count;
-}
-
 String? _officialHolidayTitle(DateTime date) {
   final j = gregorianToJalali(date);
   final exact = _iranOfficialHolidays[_holidayKey(j.year, j.month, j.day)];
@@ -2444,8 +1647,6 @@ const Map<String, String> _iranOfficialHolidays = {
   '1405-03-15': 'قیام ۱۵ خرداد',
   '1405-04-03': 'تاسوعای حسینی',
   '1405-04-04': 'عاشورای حسینی',
-  '1405-04-14': 'تعطیلی رسمی سراسری برای مراسم وداع و تشییع رهبر فقید انقلاب',
-  '1405-04-15': 'تعطیلی رسمی سراسری برای مراسم تشییع رهبر فقید انقلاب',
   '1405-05-13': 'اربعین حسینی',
   '1405-05-21': 'رحلت پیامبر اکرم (ص) و شهادت امام حسن مجتبی (ع)',
   '1405-05-22': 'شهادت امام رضا (ع)',

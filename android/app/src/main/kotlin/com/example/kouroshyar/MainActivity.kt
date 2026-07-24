@@ -50,34 +50,6 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "kouroshyar/app_info"
-        ).setMethodCallHandler { call, result ->
-            if (call.method == "getAppVersion") {
-                try {
-                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        packageInfo.longVersionCode
-                    } else {
-                        @Suppress("DEPRECATION")
-                        packageInfo.versionCode.toLong()
-                    }
-                    result.success(
-                        mapOf(
-                            "versionName" to (packageInfo.versionName.orEmpty()),
-                            "versionCode" to versionCode,
-                            "packageName" to packageName
-                        )
-                    )
-                } catch (error: Exception) {
-                    result.error("APP_VERSION_UNAVAILABLE", error.message, null)
-                }
-            } else {
-                result.notImplemented()
-            }
-        }
-
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
             "kouroshyar/no_backup"
         ).setMethodCallHandler { call, result ->
             if (call.method == "getNoBackupPath") {

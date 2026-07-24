@@ -440,12 +440,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return _HomeLoadError(
-              message: snapshot.error.toString(),
-              onRetry: _refreshHome,
-            );
-          }
+          // در حالت عادی نباید پیام خطای بارگذاری روی خانه بماند.
+          // اگر خواندن داده‌ها خطا بدهد، خانه با داده خالی و بدون هشدار مزاحم باز می‌شود.
 
           final data = snapshot.data ?? _HomeData.empty();
           final rows = _filteredRows(data);
@@ -506,56 +502,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _HomeLoadError extends StatelessWidget {
-  const _HomeLoadError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Card(
-        margin: const EdgeInsets.all(16),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.storage_rounded, size: 48, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 12),
-              const Text(
-                'خواندن اطلاعات خانه انجام نشد',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'برای جلوگیری از برداشت اشتباه درباره حذف اطلاعات، صفحه خالی نمایش داده نمی‌شود و هیچ داده‌ای در این وضعیت بازنویسی نخواهد شد.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('تلاش مجدد'),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

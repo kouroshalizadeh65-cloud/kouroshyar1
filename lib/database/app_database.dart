@@ -9,7 +9,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 
-import '../core/app_info/app_version_service.dart';
 import '../core/security/backup_crypto.dart';
 import '../features/notifications/notification_service.dart';
 
@@ -18,18 +17,9 @@ import '../features/notifications/notification_service.dart';
 /// Lightweight local storage used by the app screens.
 const String kouroshyarDatabaseFileName = 'kouroshyar_data.json';
 const String kouroshyarInstallGuardFileName = 'kouroshyar_install_guard_v1.json';
-const String kouroshyarSecurityPolicyVersion = 'v3_6_53_stability_online_holidays_v6';
+const String kouroshyarSecurityPolicyVersion = 'v3_6_51_encrypted_backup_notifications_v5';
 const String kouroshyarBackupFormat = 'kouroshyar-backup-v1';
 const MethodChannel _kouroshyarNoBackupChannel = MethodChannel('kouroshyar/no_backup');
-
-class DatabaseReadException implements Exception {
-  const DatabaseReadException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
 
 class Value<T> {
   final T? value;
@@ -212,9 +202,6 @@ class AppDatabase {
   File? _file;
   Future<void> _saveQueue = Future<void>.value();
   String? startupRecoveryNotice;
-  String? _loadFailureMessage;
-
-  String? get loadFailureMessage => _loadFailureMessage;
 
   Future<void> close() async {
     await _changes.close();
@@ -438,16 +425,7 @@ class AppDatabase {
         try {
           await mainFile.copy(corrupt.path);
         } catch (_) {}
-        _loadFailureMessage =
-            'فایل داده قابل خواندن نیست. برای جلوگیری از جایگزینی اطلاعات با داده خالی، ذخیره‌سازی متوقف شد. فایل اصلی و یک نسخه محافظتی نگهداری شده‌اند.';
-        startupRecoveryNotice = _loadFailureMessage;
-        _store = <String, dynamic>{
-          'meta': <String, dynamic>{
-            'load_failure_at': DateTime.now().toIso8601String(),
-            'load_failure_preserved': true,
-          },
-        };
-        return;
+        startupRecoveryNotice = 'فایل داده آسیب دیده بود و نسخه خالی امن ایجاد شد. نسخه خراب برای بازیابی تخصصی نگهداری شد.';
       }
       _store = <String, dynamic>{'meta': <String, dynamic>{}};
       final handled = await _enforceInstallGuard(databaseExisted: false);
@@ -458,7 +436,6 @@ class AppDatabase {
       return;
     }
 
-    _loadFailureMessage = null;
     _store = decoded;
     if (recoveredFrom != null) {
       startupRecoveryNotice = 'اطلاعات برنامه از $recoveredFrom بازیابی شد.';
@@ -513,10 +490,6 @@ class AppDatabase {
   }
 
   Future<void> _save() {
-    final loadFailure = _loadFailureMessage;
-    if (loadFailure != null) {
-      return Future<void>.error(DatabaseReadException(loadFailure));
-    }
     final completer = Completer<void>();
     final payload = jsonEncode(_store ?? <String, dynamic>{'meta': <String, dynamic>{}});
     _saveQueue = _saveQueue.catchError((_) {}).then((_) async {
@@ -638,11 +611,10 @@ class AppDatabase {
       });
     }
     final now = DateTime.now();
-    final appVersion = await AppVersionService.getInfo();
     final manifest = <String, dynamic>{
       'format': kouroshyarBackupFormat,
       'createdAt': now.toIso8601String(),
-      'appVersion': appVersion.compactDisplay,
+      'appVersion': '3.6.60+132',
       'databaseSha256': sha256.convert(dbBytes).toString(),
       'files': manifestFiles,
     };
@@ -868,7 +840,6 @@ class AppDatabase {
   }) async {
     await _ensureLoaded();
     final previousStore = _store;
-    final previousLoadFailure = _loadFailureMessage;
     Directory? extractedRoot;
     var committed = false;
     try {
@@ -898,7 +869,6 @@ class AppDatabase {
       );
 
       final installGuardId = await _readOrCreateInstallGuardId();
-      _loadFailureMessage = null;
       _store = decodedMap;
       final now = DateTime.now();
       _store!['securitySettings'] = <Map<String, dynamic>>[
@@ -924,7 +894,6 @@ class AppDatabase {
     } catch (_) {
       if (!committed) {
         _store = previousStore;
-        _loadFailureMessage = previousLoadFailure;
         if (extractedRoot != null && await extractedRoot.exists()) {
           await extractedRoot.delete(recursive: true);
         }
@@ -980,7 +949,6 @@ class AppDatabase {
     await deleteIfExists(Directory(p.join(tempDir.path, 'kouroshyar')));
 
     final installGuardId = await _readOrCreateInstallGuardId();
-    _loadFailureMessage = null;
     _store = <String, dynamic>{
       'meta': <String, dynamic>{
         'security_backup_policy': kouroshyarSecurityPolicyVersion,
@@ -1435,8 +1403,6 @@ class AppDatabase {
 
   Future<void> syncNotifications() async {
     await _ensureLoaded();
-    final loadFailure = _loadFailureMessage;
-    if (loadFailure != null) throw DatabaseReadException(loadFailure);
     NotificationService.resetSyncReport();
     for (final tableName in const ['tasks', 'deadlines', 'caseTimelineEvents']) {
       final raw = _store?[tableName];
@@ -1451,8 +1417,6 @@ class AppDatabase {
 
   Future<List<T>> _readTable<T>(TableRef<T> table) async {
     await _ensureLoaded();
-    final loadFailure = _loadFailureMessage;
-    if (loadFailure != null) throw DatabaseReadException(loadFailure);
     final raw = _store![table.name];
     if (raw is! List) return <T>[];
     return raw
@@ -1481,8 +1445,6 @@ class AppDatabase {
 
   Future<void> _writeTable<T>(TableRef<T> table, List<T> rows) async {
     await _ensureLoaded();
-    final loadFailure = _loadFailureMessage;
-    if (loadFailure != null) throw DatabaseReadException(loadFailure);
     _store![table.name] = rows.map(table.toJson).toList();
     await _save();
     _changes.add(table.name);
@@ -1492,8 +1454,6 @@ class AppDatabase {
 
   Future<int> _nextId<T>(TableRef<T> table) async {
     await _ensureLoaded();
-    final loadFailure = _loadFailureMessage;
-    if (loadFailure != null) throw DatabaseReadException(loadFailure);
     final metaRaw = _store!['meta'];
     final meta = metaRaw is Map<String, dynamic> ? metaRaw : <String, dynamic>{};
     _store!['meta'] = meta;
@@ -3437,33 +3397,13 @@ class CalendarSetting {
     required this.weekendMode,
     required this.showOfficialHolidays,
     required this.defaultView,
-    required this.onlineHolidayUpdatesEnabled,
-    required this.holidayAutoUpdateEnabled,
-    required this.holidayProvince,
-    required this.holidayFeedRevision,
-    required this.workingHoursFeedRevision,
     required this.updatedAt,
-    this.holidayFeedData,
-    this.workingHoursFeedData,
-    this.holidayLastCheckedAt,
-    this.holidayLastSuccessAt,
-    this.holidayLastError,
   });
 
   final int id;
   final String weekendMode;
   final bool showOfficialHolidays;
   final String defaultView;
-  final bool onlineHolidayUpdatesEnabled;
-  final bool holidayAutoUpdateEnabled;
-  final String holidayProvince;
-  final String? holidayFeedData;
-  final int holidayFeedRevision;
-  final String? workingHoursFeedData;
-  final int workingHoursFeedRevision;
-  final DateTime? holidayLastCheckedAt;
-  final DateTime? holidayLastSuccessAt;
-  final String? holidayLastError;
   final DateTime updatedAt;
 
   static CalendarSetting defaults() => CalendarSetting(
@@ -3471,11 +3411,6 @@ class CalendarSetting {
         weekendMode: 'friday',
         showOfficialHolidays: true,
         defaultView: 'month',
-        onlineHolidayUpdatesEnabled: false,
-        holidayAutoUpdateEnabled: true,
-        holidayProvince: 'ایلام',
-        holidayFeedRevision: 0,
-        workingHoursFeedRevision: 0,
         updatedAt: DateTime.now(),
       );
 
@@ -3484,16 +3419,6 @@ class CalendarSetting {
         weekendMode: _valueOr(c.weekendMode, 'friday'),
         showOfficialHolidays: _valueOr(c.showOfficialHolidays, true),
         defaultView: _valueOr(c.defaultView, 'month'),
-        onlineHolidayUpdatesEnabled: _valueOr(c.onlineHolidayUpdatesEnabled, false),
-        holidayAutoUpdateEnabled: _valueOr(c.holidayAutoUpdateEnabled, true),
-        holidayProvince: _valueOr(c.holidayProvince, 'ایلام'),
-        holidayFeedData: _nullableValueOr(c.holidayFeedData, null),
-        holidayFeedRevision: _valueOr(c.holidayFeedRevision, 0),
-        workingHoursFeedData: _nullableValueOr(c.workingHoursFeedData, null),
-        workingHoursFeedRevision: _valueOr(c.workingHoursFeedRevision, 0),
-        holidayLastCheckedAt: _nullableValueOr(c.holidayLastCheckedAt, null),
-        holidayLastSuccessAt: _nullableValueOr(c.holidayLastSuccessAt, null),
-        holidayLastError: _nullableValueOr(c.holidayLastError, null),
         updatedAt: DateTime.now(),
       );
 
@@ -3502,16 +3427,6 @@ class CalendarSetting {
         weekendMode: (json['weekendMode'] ?? 'friday').toString(),
         showOfficialHolidays: json['showOfficialHolidays'] != false,
         defaultView: (json['defaultView'] ?? 'month').toString(),
-        onlineHolidayUpdatesEnabled: json['onlineHolidayUpdatesEnabled'] == true,
-        holidayAutoUpdateEnabled: json['holidayAutoUpdateEnabled'] != false,
-        holidayProvince: (json['holidayProvince'] ?? 'ایلام').toString(),
-        holidayFeedData: _blankToNull(json['holidayFeedData']?.toString()),
-        holidayFeedRevision: (json['holidayFeedRevision'] as num?)?.toInt() ?? 0,
-        workingHoursFeedData: _blankToNull(json['workingHoursFeedData']?.toString()),
-        workingHoursFeedRevision: (json['workingHoursFeedRevision'] as num?)?.toInt() ?? 0,
-        holidayLastCheckedAt: _dateOrNull(json['holidayLastCheckedAt']),
-        holidayLastSuccessAt: _dateOrNull(json['holidayLastSuccessAt']),
-        holidayLastError: _blankToNull(json['holidayLastError']?.toString()),
         updatedAt: _dateOrNow(json['updatedAt']),
       );
 
@@ -3520,83 +3435,28 @@ class CalendarSetting {
         'weekendMode': weekendMode,
         'showOfficialHolidays': showOfficialHolidays,
         'defaultView': defaultView,
-        'onlineHolidayUpdatesEnabled': onlineHolidayUpdatesEnabled,
-        'holidayAutoUpdateEnabled': holidayAutoUpdateEnabled,
-        'holidayProvince': holidayProvince,
-        'holidayFeedData': holidayFeedData,
-        'holidayFeedRevision': holidayFeedRevision,
-        'workingHoursFeedData': workingHoursFeedData,
-        'workingHoursFeedRevision': workingHoursFeedRevision,
-        'holidayLastCheckedAt': holidayLastCheckedAt?.toIso8601String(),
-        'holidayLastSuccessAt': holidayLastSuccessAt?.toIso8601String(),
-        'holidayLastError': holidayLastError,
         'updatedAt': updatedAt.toIso8601String(),
       };
 
   CalendarSetting copyWith({
-    int? id,
     String? weekendMode,
     bool? showOfficialHolidays,
     String? defaultView,
-    bool? onlineHolidayUpdatesEnabled,
-    bool? holidayAutoUpdateEnabled,
-    String? holidayProvince,
-    Value<String?>? holidayFeedData,
-    int? holidayFeedRevision,
-    Value<String?>? workingHoursFeedData,
-    int? workingHoursFeedRevision,
-    Value<DateTime?>? holidayLastCheckedAt,
-    Value<DateTime?>? holidayLastSuccessAt,
-    Value<String?>? holidayLastError,
     DateTime? updatedAt,
   }) =>
       CalendarSetting(
-        id: id ?? this.id,
+        id: id,
         weekendMode: weekendMode ?? this.weekendMode,
         showOfficialHolidays: showOfficialHolidays ?? this.showOfficialHolidays,
         defaultView: defaultView ?? this.defaultView,
-        onlineHolidayUpdatesEnabled: onlineHolidayUpdatesEnabled ?? this.onlineHolidayUpdatesEnabled,
-        holidayAutoUpdateEnabled: holidayAutoUpdateEnabled ?? this.holidayAutoUpdateEnabled,
-        holidayProvince: holidayProvince ?? this.holidayProvince,
-        holidayFeedData: _blankToNull(_nullableValueOr(holidayFeedData, this.holidayFeedData)),
-        holidayFeedRevision: holidayFeedRevision ?? this.holidayFeedRevision,
-        workingHoursFeedData: _blankToNull(_nullableValueOr(workingHoursFeedData, this.workingHoursFeedData)),
-        workingHoursFeedRevision: workingHoursFeedRevision ?? this.workingHoursFeedRevision,
-        holidayLastCheckedAt: _nullableValueOr(holidayLastCheckedAt, this.holidayLastCheckedAt),
-        holidayLastSuccessAt: _nullableValueOr(holidayLastSuccessAt, this.holidayLastSuccessAt),
-        holidayLastError: _blankToNull(_nullableValueOr(holidayLastError, this.holidayLastError)),
         updatedAt: updatedAt ?? this.updatedAt,
       );
 }
 
 class CalendarSettingsCompanion {
-  const CalendarSettingsCompanion.insert({
-    this.weekendMode,
-    this.showOfficialHolidays,
-    this.defaultView,
-    this.onlineHolidayUpdatesEnabled,
-    this.holidayAutoUpdateEnabled,
-    this.holidayProvince,
-    this.holidayFeedData,
-    this.holidayFeedRevision,
-    this.workingHoursFeedData,
-    this.workingHoursFeedRevision,
-    this.holidayLastCheckedAt,
-    this.holidayLastSuccessAt,
-    this.holidayLastError,
-  });
+  const CalendarSettingsCompanion.insert({this.weekendMode, this.showOfficialHolidays, this.defaultView});
 
   final Value<String>? weekendMode;
   final Value<bool>? showOfficialHolidays;
   final Value<String>? defaultView;
-  final Value<bool>? onlineHolidayUpdatesEnabled;
-  final Value<bool>? holidayAutoUpdateEnabled;
-  final Value<String>? holidayProvince;
-  final Value<String?>? holidayFeedData;
-  final Value<int>? holidayFeedRevision;
-  final Value<String?>? workingHoursFeedData;
-  final Value<int>? workingHoursFeedRevision;
-  final Value<DateTime?>? holidayLastCheckedAt;
-  final Value<DateTime?>? holidayLastSuccessAt;
-  final Value<String?>? holidayLastError;
 }
