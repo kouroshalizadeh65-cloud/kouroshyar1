@@ -99,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.phone_android),
                   title: Text('نسخه برنامه'),
-                  subtitle: Text('کوروش‌یار v3.6.60'),
+                  subtitle: Text('کوروش‌یار v3.6.61'),
                 ),
               ),
             ],

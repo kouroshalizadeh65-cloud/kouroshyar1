@@ -614,7 +614,7 @@ class AppDatabase {
     final manifest = <String, dynamic>{
       'format': kouroshyarBackupFormat,
       'createdAt': now.toIso8601String(),
-      'appVersion': '3.6.60+132',
+      'appVersion': '3.6.61+133',
       'databaseSha256': sha256.convert(dbBytes).toString(),
       'files': manifestFiles,
     };

@@ -94,13 +94,13 @@ jobs:
       - name: Rename APK with version
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk \
-            build/app/outputs/flutter-apk/kouroshyar_v3_6_60_clean_offline_1405_05_02.apk
+            build/app/outputs/flutter-apk/kouroshyar_v3_6_61_calendar_today_1405_05_02.apk
 
       - name: Upload APK and verification reports
         uses: actions/upload-artifact@v4
         with:
-          name: kouroshyar-v3-6-60-clean-offline-1405-05-02-apk
+          name: kouroshyar-v3-6-61-calendar-today-1405-05-02-apk
           path: |
-            build/app/outputs/flutter-apk/kouroshyar_v3_6_60_clean_offline_1405_05_02.apk
+            build/app/outputs/flutter-apk/kouroshyar_v3_6_61_calendar_today_1405_05_02.apk
             build/apksigner-report.txt
             build/package-report.txt

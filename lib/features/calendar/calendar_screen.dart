@@ -802,7 +802,7 @@ class _ModeButton extends StatelessWidget {
   }
 }
 
-class _WeekCalendarView extends StatelessWidget {
+class _WeekCalendarView extends StatefulWidget {
   const _WeekCalendarView({
     required this.start,
     required this.selectedDay,
@@ -822,9 +822,46 @@ class _WeekCalendarView extends StatelessWidget {
   final ValueChanged<int> onOpenCase;
 
   @override
+  State<_WeekCalendarView> createState() => _WeekCalendarViewState();
+}
+
+class _WeekCalendarViewState extends State<_WeekCalendarView> {
+  final List<GlobalKey> _dayKeys = List<GlobalKey>.generate(7, (_) => GlobalKey());
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleSelectedDayVisibility();
+  }
+
+  @override
+  void didUpdateWidget(covariant _WeekCalendarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameDate(oldWidget.start, widget.start) || !_sameDate(oldWidget.selectedDay, widget.selectedDay)) {
+      _scheduleSelectedDayVisibility();
+    }
+  }
+
+  void _scheduleSelectedDayVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final rawIndex = widget.selectedDay.difference(widget.start).inDays;
+      final selectedIndex = rawIndex.clamp(0, 6).toInt();
+      final selectedContext = _dayKeys[selectedIndex].currentContext;
+      if (selectedContext == null) return;
+      Scrollable.ensureVisible(
+        selectedContext,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        alignment: 0.5,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final days = List<DateTime>.generate(7, (index) => start.add(Duration(days: index)));
-    final selectedItems = itemsForDay(selectedDay);
+    final days = List<DateTime>.generate(7, (index) => widget.start.add(Duration(days: index)));
+    final selectedItems = widget.itemsForDay(widget.selectedDay);
     final bottom = math.max(MediaQuery.of(context).padding.bottom, 16.0);
 
     return ListView(
@@ -838,14 +875,17 @@ class _WeekCalendarView extends StatelessWidget {
               textDirection: TextDirection.rtl,
               children: [
                 for (var i = 0; i < days.length; i++) ...[
-                  _WeekDayCard(
-                    day: days[i],
-                    title: _weekDayName(days[i]),
-                    items: itemsForDay(days[i]),
-                    settings: settings,
-                    isToday: _sameDate(days[i], DateTime.now()),
-                    isSelected: _sameDate(days[i], selectedDay),
-                    onTap: () => onSelectDay(days[i]),
+                  KeyedSubtree(
+                    key: _dayKeys[i],
+                    child: _WeekDayCard(
+                      day: days[i],
+                      title: _weekDayName(days[i]),
+                      items: widget.itemsForDay(days[i]),
+                      settings: widget.settings,
+                      isToday: _sameDate(days[i], DateTime.now()),
+                      isSelected: _sameDate(days[i], widget.selectedDay),
+                      onTap: () => widget.onSelectDay(days[i]),
+                    ),
                   ),
                   if (i != days.length - 1) const SizedBox(width: 8),
                 ],
@@ -854,13 +894,13 @@ class _WeekCalendarView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        _HolidayBanner(day: selectedDay, settings: settings),
+        _HolidayBanner(day: widget.selectedDay, settings: widget.settings),
         _DayAgendaCard(
-          title: 'برنامه ${formatPersianLongDate(selectedDay)}',
+          title: 'برنامه ${formatPersianLongDate(widget.selectedDay)}',
           emptyText: 'برای این روز کار، مهلت یا جلسه‌ای ثبت نشده است.',
           items: selectedItems,
-          timeText: timeText,
-          onOpenCase: onOpenCase,
+          timeText: widget.timeText,
+          onOpenCase: widget.onOpenCase,
         ),
       ],
     );
@@ -893,12 +933,19 @@ class _MonthCalendarView extends StatelessWidget {
     const weekDayFullNames = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
     final availableWidth = math.max(240.0, media.size.width - 58);
     final cellWidth = availableWidth / 7;
-    final cellHeight = math.max(56.0, cellWidth * 1.18);
+    final cellHeight = math.max(66.0, cellWidth * 1.35);
     final gridAspectRatio = cellWidth / cellHeight;
+    final today = DateTime.now();
+    final todayJ = gregorianToJalali(today);
+    final isCurrentMonth = j.year == todayJ.year && j.month == todayJ.month;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(12, 0, 12, bottom + 72),
       children: [
+        if (isCurrentMonth) ...[
+          _CurrentDateBanner(date: today, label: 'امروز'),
+          const SizedBox(height: 8),
+        ],
         Card(
           child: Directionality(
             textDirection: TextDirection.rtl,
@@ -944,7 +991,7 @@ class _MonthCalendarView extends StatelessWidget {
                       return _MonthDayCell(
                         jalaliDay: dayJ.day,
                         inCurrentMonth: dayJ.month == j.month,
-                        isToday: _sameDate(day, DateTime.now()),
+                        isToday: _sameDate(day, today),
                         isHoliday: _isHoliday(day, settings),
                         holidayTitle: _holidayTitle(day, settings),
                         items: itemsForDay(day),
@@ -1003,7 +1050,7 @@ class _DayCalendarView extends StatelessWidget {
   }
 }
 
-class _YearCalendarView extends StatelessWidget {
+class _YearCalendarView extends StatefulWidget {
   const _YearCalendarView({
     required this.anchorDate,
     required this.settings,
@@ -1019,16 +1066,58 @@ class _YearCalendarView extends StatelessWidget {
   final ValueChanged<DateTime> onSelectMonth;
 
   @override
+  State<_YearCalendarView> createState() => _YearCalendarViewState();
+}
+
+class _YearCalendarViewState extends State<_YearCalendarView> {
+  final List<GlobalKey> _monthKeys = List<GlobalKey>.generate(12, (_) => GlobalKey());
+  int? _scheduledYear;
+
+  @override
+  void didUpdateWidget(covariant _YearCalendarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldJ = gregorianToJalali(oldWidget.anchorDate);
+    final newJ = gregorianToJalali(widget.anchorDate);
+    if (oldJ.year != newJ.year) {
+      _scheduledYear = null;
+    }
+  }
+
+  void _scheduleCurrentMonthVisibility(int displayedYear) {
+    final todayJ = gregorianToJalali(DateTime.now());
+    if (displayedYear != todayJ.year || _scheduledYear == displayedYear) {
+      return;
+    }
+    _scheduledYear = displayedYear;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentMonthContext = _monthKeys[todayJ.month - 1].currentContext;
+      if (currentMonthContext == null) {
+        _scheduledYear = null;
+        return;
+      }
+      Scrollable.ensureVisible(
+        currentMonthContext,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.16,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final bottom = math.max(MediaQuery.of(context).padding.bottom, 16.0);
-    final j = gregorianToJalali(anchorDate);
+    final j = gregorianToJalali(widget.anchorDate);
+    final todayJ = gregorianToJalali(DateTime.now());
     final months = List<int>.generate(12, (index) => index + 1);
 
+    _scheduleCurrentMonthVisibility(j.year);
     return GridView.builder(
       padding: EdgeInsets.fromLTRB(12, 0, 12, bottom + 72),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 1.15,
+        childAspectRatio: 1.08,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),
@@ -1036,15 +1125,23 @@ class _YearCalendarView extends StatelessWidget {
       itemBuilder: (context, index) {
         final month = months[index];
         final start = jalaliToGregorian(j.year, month, 1);
-        final end = month == 12 ? jalaliToGregorian(j.year + 1, 1, 1).subtract(const Duration(days: 1)) : jalaliToGregorian(j.year, month + 1, 1).subtract(const Duration(days: 1));
-        final monthItems = itemsBetween(items, start, end);
-        final holidayCount = _holidayCountInRange(start, end, settings);
-        return _YearMonthCard(
-          year: j.year,
-          month: month,
-          items: monthItems,
-          holidayCount: holidayCount,
-          onTap: () => onSelectMonth(start),
+        final end = month == 12
+            ? jalaliToGregorian(j.year + 1, 1, 1).subtract(const Duration(days: 1))
+            : jalaliToGregorian(j.year, month + 1, 1).subtract(const Duration(days: 1));
+        final monthItems = widget.itemsBetween(widget.items, start, end);
+        final holidayCount = _holidayCountInRange(start, end, widget.settings);
+        final isCurrentMonth = j.year == todayJ.year && month == todayJ.month;
+        return KeyedSubtree(
+          key: _monthKeys[index],
+          child: _YearMonthCard(
+            year: j.year,
+            month: month,
+            items: monthItems,
+            holidayCount: holidayCount,
+            isCurrentMonth: isCurrentMonth,
+            currentDay: isCurrentMonth ? todayJ.day : null,
+            onTap: () => widget.onSelectMonth(start),
+          ),
         );
       },
     );
@@ -1095,11 +1192,33 @@ class _WeekDayCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: titleColor),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: titleColor),
+                      ),
+                    ),
+                    if (isToday)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'امروز',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1159,51 +1278,90 @@ class _MonthDayCell extends StatelessWidget {
     final error = scheme.error;
     final borderColor = isToday ? scheme.primary : isHoliday ? error.withOpacity(0.7) : scheme.outlineVariant;
     final fill = isToday
-        ? scheme.primaryContainer.withOpacity(0.55)
+        ? scheme.primaryContainer.withOpacity(0.90)
         : isHoliday
             ? scheme.errorContainer.withOpacity(0.36)
             : scheme.surfaceContainerHighest.withOpacity(inCurrentMonth ? 0.46 : 0.25);
-    final dayTextColor = isHoliday
-        ? error
-        : inCurrentMonth
-            ? scheme.onSurface
-            : scheme.onSurfaceVariant;
-    return Opacity(
-      opacity: opacity,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor),
-            color: fill,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
+    final dayTextColor = isToday
+        ? scheme.onPrimary
+        : isHoliday
+            ? error
+            : inCurrentMonth
+                ? scheme.onSurface
+                : scheme.onSurfaceVariant;
+
+    return Semantics(
+      button: true,
+      label: isToday ? 'امروز، روز ${toPersianDigits(jalaliDay.toString())}' : 'روز ${toPersianDigits(jalaliDay.toString())}',
+      child: Opacity(
+        opacity: opacity,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: isToday ? 2.4 : 1),
+              color: fill,
+              boxShadow: isToday
+                  ? [
+                      BoxShadow(
+                        color: scheme.primary.withOpacity(0.22),
+                        blurRadius: 5,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: isToday ? 24 : null,
+                      height: isToday ? 24 : null,
+                      alignment: Alignment.center,
+                      decoration: isToday
+                          ? BoxDecoration(
+                              color: scheme.primary,
+                              shape: BoxShape.circle,
+                            )
+                          : null,
+                      child: Text(
+                        toPersianDigits(jalaliDay.toString()),
+                        style: TextStyle(
+                          fontSize: isToday ? 13 : 12,
+                          fontWeight: FontWeight.bold,
+                          color: dayTextColor,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (isHoliday) Icon(Icons.circle, size: 7, color: error),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                if (isToday && items.isEmpty)
                   Text(
-                    toPersianDigits(jalaliDay.toString()),
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: dayTextColor),
-                  ),
-                  const Spacer(),
-                  if (isHoliday) Icon(Icons.circle, size: 7, color: error),
+                    'امروز',
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: TextStyle(fontSize: 8, color: scheme.primary, fontWeight: FontWeight.w900),
+                  )
+                else if (holidayTitle != null)
+                  Text('تعطیل', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: error, fontWeight: FontWeight.bold)),
+                if (items.isEmpty)
+                  const Spacer()
+                else ...[
+                  _MonthMiniLine(items: items, type: _CalendarItemType.deadline, label: 'مهلت'),
+                  _MonthMiniLine(items: items, type: _CalendarItemType.session, label: 'جلسه'),
+                  _MonthMiniLine(items: items, type: _CalendarItemType.task, label: 'کار'),
                 ],
-              ),
-              const SizedBox(height: 2),
-              if (holidayTitle != null)
-                Text('تعطیل', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: error, fontWeight: FontWeight.bold)),
-              if (items.isEmpty)
-                const Spacer()
-              else ...[
-                _MonthMiniLine(items: items, type: _CalendarItemType.deadline, label: 'مهلت'),
-                _MonthMiniLine(items: items, type: _CalendarItemType.session, label: 'جلسه'),
-                _MonthMiniLine(items: items, type: _CalendarItemType.task, label: 'کار'),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1212,37 +1370,94 @@ class _MonthDayCell extends StatelessWidget {
 }
 
 class _YearMonthCard extends StatelessWidget {
-  const _YearMonthCard({required this.year, required this.month, required this.items, required this.holidayCount, required this.onTap});
+  const _YearMonthCard({
+    required this.year,
+    required this.month,
+    required this.items,
+    required this.holidayCount,
+    required this.isCurrentMonth,
+    required this.currentDay,
+    required this.onTap,
+  });
 
   final int year;
   final int month;
   final List<_CalendarItem> items;
   final int holidayCount;
+  final bool isCurrentMonth;
+  final int? currentDay;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final taskCount = items.where((item) => item.type == _CalendarItemType.task).length;
     final deadlineCount = items.where((item) => item.type == _CalendarItemType.deadline).length;
     final sessionCount = items.where((item) => item.type == _CalendarItemType.session).length;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('${_monthName(month)} ${toPersianDigits(year.toString())}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              _YearLine(icon: Icons.warning_amber, label: 'مهلت', count: deadlineCount),
-              _YearLine(icon: Icons.groups, label: 'جلسه', count: sessionCount),
-              _YearLine(icon: Icons.task_alt, label: 'کار', count: taskCount),
-              _YearLine(icon: Icons.event_busy, label: 'تعطیل', count: holidayCount),
-              const Spacer(),
-              Text('ورود به ماه', textAlign: TextAlign.left, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-            ],
+
+    return Semantics(
+      button: true,
+      label: isCurrentMonth
+          ? '${_monthName(month)}، ماه جاری، امروز روز ${toPersianDigits(currentDay.toString())}'
+          : '${_monthName(month)} ${toPersianDigits(year.toString())}',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Card(
+          color: isCurrentMonth ? scheme.primaryContainer.withOpacity(0.62) : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isCurrentMonth ? scheme.primary : scheme.outlineVariant,
+              width: isCurrentMonth ? 2.2 : 1,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_monthName(month)} ${toPersianDigits(year.toString())}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (isCurrentMonth)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: scheme.primary,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'ماه جاری',
+                          style: TextStyle(color: scheme.onPrimary, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _YearLine(icon: Icons.warning_amber, label: 'مهلت', count: deadlineCount),
+                _YearLine(icon: Icons.groups, label: 'جلسه', count: sessionCount),
+                _YearLine(icon: Icons.task_alt, label: 'کار', count: taskCount),
+                _YearLine(icon: Icons.event_busy, label: 'تعطیل', count: holidayCount),
+                const Spacer(),
+                Text(
+                  isCurrentMonth ? 'امروز: ${toPersianDigits(currentDay.toString())} ${_monthName(month)}' : 'ورود به ماه',
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: isCurrentMonth ? scheme.primary : scheme.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: isCurrentMonth ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1266,6 +1481,43 @@ class _YearLine extends StatelessWidget {
           Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 4),
           Text('$label: ${toPersianDigits(count.toString())}', style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CurrentDateBanner extends StatelessWidget {
+  const _CurrentDateBanner({required this.date, required this.label});
+
+  final DateTime date;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.primary, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 17,
+            backgroundColor: scheme.primary,
+            foregroundColor: scheme.onPrimary,
+            child: const Icon(Icons.today, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$label: ${formatPersianLongDate(date)}',
+              style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
